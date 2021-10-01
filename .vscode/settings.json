@@ -31,5 +31,6 @@
    "search.exclude": {
       "**/yarn-error.log": true,
       "**/yarn.lock": true
-   }
+   },
+   "solidity.compileUsingRemoteVersion": "v0.7.6"
 }

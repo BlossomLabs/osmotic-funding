@@ -1,5 +1,6 @@
-pragma solidity >=0.6.0 <0.8.0;
-//SPDX-License-Identifier: GPLv3+
+// SPDX-License-Identifier: AGPLv3
+pragma solidity 0.7.6;
+pragma experimental ABIEncoderV2;
 
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -67,7 +68,7 @@ contract SuperConvictionVoting is Ownable {
     uint256 _maxRatio,
     uint256 _weight,
     uint256 _minActiveStake
-  ) public {
+  ) {
     require(address(_stakeToken) != _requestToken, "STAKE_AND_REQUEST_TOKENS_MUST_BE_DIFFERENT");
     stakeToken = _stakeToken;
     requestToken = _requestToken;
@@ -98,15 +99,14 @@ contract SuperConvictionVoting is Ownable {
   )
     external
   {
-    proposals[proposalCounter] = Proposal(
-      _requestedAmount,
-      _beneficiary,
-      0,
-      0,
-      0,
-      true,
-      msg.sender
-    );
+    Proposal storage p = proposals[proposalCounter];
+    p.requestedAmount = _requestedAmount;
+    p.beneficiary = _beneficiary;
+    p.stakedTokens = 0;
+    p.convictionLast = 0;
+    p.timeLast = 0;
+    p.active = true;
+    p.submitter = msg.sender;
 
     emit ProposalAdded(msg.sender, proposalCounter, _title, _link, _requestedAmount, _beneficiary);
     proposalCounter++;
@@ -211,17 +211,17 @@ contract SuperConvictionVoting is Ownable {
    * @param _oldStaked Amount of tokens staked on a proposal until now
    */
   function _calculateAndSetConviction(Proposal storage _proposal, uint256 _oldStaked) internal {
-    assert(_proposal.timeLast <= now);
-    if (_proposal.timeLast == now) {
+    assert(_proposal.timeLast <= block.timestamp);
+    if (_proposal.timeLast == block.timestamp) {
       return; // Conviction already stored
     }
     // calculateConviction and store it
     uint256 conviction = calculateConviction(
-      now - _proposal.timeLast, // we assert it doesn't overflow above
+      block.timestamp - _proposal.timeLast, // we assert it doesn't overflow above
       _proposal.convictionLast,
       _oldStaked
     );
-    _proposal.timeLast = now;
+    _proposal.timeLast = block.timestamp;
     _proposal.convictionLast = conviction;
   }
 
@@ -246,7 +246,7 @@ contract SuperConvictionVoting is Ownable {
     _updateVoterStakedProposals(_proposalId, _from, _amount, true);
 
     if (proposal.timeLast == 0) {
-      proposal.timeLast = now;
+      proposal.timeLast = block.timestamp;
     } else {
       _calculateAndSetConviction(proposal, previousStake);
     }
