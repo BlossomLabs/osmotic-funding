@@ -8,17 +8,17 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
+import "abdk-libraries-solidity/ABDKMath64x64.sol";
 
 contract SuperConvictionVoting is Ownable {
+  using ABDKMath64x64 for int128;
+  using ABDKMath64x64 for uint256;
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
   using EnumerableSet for EnumerableSet.UintSet;
 
-  uint256 constant public D = 10000000;
-  uint256 constant private TWO_128 = 0x100000000000000000000000000000000; // 2^128
-  uint256 constant private TWO_127 = 0x80000000000000000000000000000000; // 2^127
-  uint256 constant private TWO_64 = 0x10000000000000000; // 2^64
   uint64 constant public MAX_STAKED_PROPOSALS = 10;
+  int128 constant private ONE = 1 << 64;
 
   struct Proposal {
     uint256 requestedAmount;
@@ -33,9 +33,9 @@ contract SuperConvictionVoting is Ownable {
 
   IERC20 public stakeToken;
   address public requestToken;
-  uint256 public decay;
-  uint256 public maxRatio;
-  uint256 public weight;
+  int128 internal decay;
+  int128 internal maxRatio;
+  int128 internal weight;
   uint256 public proposalCounter;
   uint256 public totalStaked;
 
@@ -80,9 +80,9 @@ contract SuperConvictionVoting is Ownable {
   )
     public onlyOwner
   {
-    decay = _decay;
-    maxRatio = _maxRatio;
-    weight = _weight;
+    decay = int128((_decay << 64) / 1e18);
+    maxRatio = int128((_maxRatio << 64) / 1e18);
+    weight = int128((_weight << 64) / 1e18);
 
     emit ConvictionSettingsChanged(_decay, _maxRatio, _weight);
   }
@@ -135,6 +135,14 @@ contract SuperConvictionVoting is Ownable {
     proposal.active = false;
 
     emit ProposalCancelled(_proposalId);
+  }
+
+  function getConvictionSettings() public view returns (uint256 _decay, uint256 _maxRatio, uint256 _weight) {
+    return (
+      uint256(decay * 1e18 >> 64) + 1,
+      uint256(maxRatio * 1e18 >> 64) + 1,
+      uint256(weight * 1e18 >> 64) + 1
+    );
   }
 
   /**
@@ -196,69 +204,20 @@ contract SuperConvictionVoting is Ownable {
   )
     public view returns(uint256)
   {
-    // atTWO_128 = 2^128 * a^t
-    uint256 atTWO_128 = _pow((decay << 128).div(D), _timePassed);
-    uint256 DsubA = D.sub(decay);
-    // solium-disable-previous-line
-    // conviction = (atTWO_128 * _lastConv + _oldAmount * D * (2^128 - atTWO_128) / ((D - aD)^2 * D) + 2^127) / 2^128
-    return (atTWO_128.mul(_lastConv).add(_oldAmount.mul(D).mul(TWO_128.sub(atTWO_128)).div(DsubA.mul(DsubA)).mul(D))).add(TWO_127) >> 128;
+    int128 at = decay.pow(_timePassed);
+    int128 oneSubA = ONE.sub(decay);
+    // conviction = (alpha ^ time * lastConv + _oldAmount * (1 - alpha ^ time) / (1 - alpha) ^ 2
+    return at.mulu(_lastConv).add(ONE.sub(at).div(oneSubA.mul(oneSubA)).mulu(_oldAmount));
   }
 
   function calculateReward(uint256 _conviction) public view returns (uint256 _amount) {
     if (_conviction == 0) {
-      return 0;
-    }
-    uint256 funds = IERC20(requestToken).balanceOf(address(this));
-    uint256 p = _sqrt(weight.mul(totalStaked).mul(D).div(_conviction));
-    _amount = maxRatio > p ? maxRatio.sub(p).mul(funds).div(D) : 0;
-  }
-
-  function _sqrt(uint256 y) internal pure returns (uint256 z) {
-    if (y > 3) {
-      z = y;
-      uint256 x = y / 2 + 1;
-      while (x < z) {
-        z = x;
-        x = (y / x + x) / 2;
-      }
-    } else if (y != 0) {
-      z = 1;
-    }
-  }
-
-  /**
-   * Multiply _a by _b / 2^128.  Parameter _a should be less than or equal to
-   * 2^128 and parameter _b should be less than 2^128.
-   * @param _a left argument
-   * @param _b right argument
-   * @return _result _a * _b / 2^128
-   */
-  function _mul(uint256 _a, uint256 _b) internal pure returns (uint256 _result) {
-    require(_a <= TWO_128, "_a should be less than or equal to 2^128");
-    require(_b < TWO_128, "_b should be less than 2^128");
-    return _a.mul(_b).add(TWO_127) >> 128;
-  }
-
-  /**
-   * Calculate (_a / 2^128)^_b * 2^128.  Parameter _a should be less than 2^128.
-   *
-   * @param _a left argument
-   * @param _b right argument
-   * @return _result (_a / 2^128)^_b * 2^128
-   */
-  function _pow(uint256 _a, uint256 _b) internal pure returns (uint256 _result) {
-    require(_a < TWO_128, "_a should be less than 2^128");
-    uint256 a = _a;
-    uint256 b = _b;
-    _result = TWO_128;
-    while (b > 0) {
-      if (b & 1 == 0) {
-        a = _mul(a, a);
-        b >>= 1;
-      } else {
-        _result = _mul(_result, a);
-        b -= 1;
-      }
+      _amount = 0;
+    } else {
+      uint256 funds = IERC20(requestToken).balanceOf(address(this));
+      // funds * (beta - sqrt(weight * totalStaked / conviction)
+      int128 p = weight.mulu(totalStaked).divu(_conviction).sqrt();
+      _amount = maxRatio > p ? maxRatio.sub(p).mulu(funds) : 0;
     }
   }
 

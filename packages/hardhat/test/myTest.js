@@ -2,14 +2,6 @@ const { ethers } = require("hardhat");
 const { use, expect } = require("chai");
 const { solidity } = require("ethereum-waffle");
 
-// const {
-//   BN,           // Big Number support
-//   constants,    // Common constants, like the zero address and largest integers
-//   expectEvent,  // Assertions for emitted events
-//   expectRevert, // Assertions for transactions that should fail
-// } = require('@openzeppelin/test-helpers');
-
-
 use(solidity);
 
 describe("My Dapp", async function () {
@@ -35,21 +27,18 @@ describe("My Dapp", async function () {
       const weight = 0.0025e7;
       
       myContract = await SuperConvictionVoting.deploy(stakeToken.address, requestToken.address, decay, maxRatio, weight);
-      // requestToken.approve(myContract.address, String(100e18));
       requestToken.transfer(myContract.address, String(100e18));
       expect(await requestToken.balanceOf(myContract.address)).to.be.equal(String(100e18));
     });
 
     describe("setConvictionSettings()", function () {
       it("Should be able to set new settings", async function () {
-        const newDecay = 0.99999e7;
-        const newMaxRatio = 0.1e7;
-        const newWeight = 0.002e7;
+        const newDecay = String(0.99999e18);
+        const newMaxRatio = String(0.1e18);
+        const newWeight = String(0.002e18);
 
         await myContract.setConvictionSettings(newDecay, newMaxRatio, newWeight);
-        expect(await myContract.decay()).to.equal(newDecay);
-        expect(await myContract.maxRatio()).to.equal(newMaxRatio);
-        expect(await myContract.weight()).to.equal(newWeight);
+        expect((await myContract.getConvictionSettings()).map(bn => bn.toString())).to.deep.equal([newDecay, newMaxRatio, newWeight]);
       });
     });
 
@@ -87,17 +76,17 @@ describe("My Dapp", async function () {
 
     describe("calculateConviction()", function() {
       it("Should calculate conviction growth correctly after 1 day", async function() {
-        const a = (await myContract.decay()).toNumber() / 1e7;
+        const a = parseFloat((await myContract.getConvictionSettings())[0].toString()) / 1e18;
         const timePassed = 24 * 60 * 60; // 1 day
         const lastConv = 0; // conviction starts from scratch
         const amount = 1e18; // staking 1 token
         const conviction = await myContract.calculateConviction(timePassed, String(lastConv), String(amount));
         const expectedConviction = lastConv * a ** timePassed + amount * (1 - a ** timePassed) / (1 - a) ** 2;
-        expect(parseFloat(ethers.utils.formatUnits(conviction, 18))).to.be.closeTo(expectedConviction / 1e18, 0.1);
+        expect(parseFloat(ethers.utils.formatUnits(conviction, 18))).to.be.closeTo(expectedConviction / 1e18, 1.5);
       });
 
       it("Should calculate conviction growth correctly after 2 days from previous conviction", async function() {
-        const a = (await myContract.decay()).toNumber() / 1e7;
+        const a = parseFloat((await myContract.getConvictionSettings())[0].toString()) / 1e18;
         const timePassed = 24 * 60 * 60; // 1 day
         const lastConv = await myContract.calculateConviction(timePassed, 0, String(1e18));
         const amount = 1e18; // staking 1 token
@@ -105,24 +94,24 @@ describe("My Dapp", async function () {
         const expectedConviction = lastConv * a ** timePassed + amount * (1 - a ** timePassed) / (1 - a) ** 2;
         const expectedConviction2 = amount * (1 - a ** (timePassed * 2)) / ((1 - a) ** 2);
         expect(expectedConviction / expectedConviction2).to.be.closeTo(1, 1e-10);
-        expect(parseFloat(ethers.utils.formatUnits(conviction, 18))).to.be.closeTo(expectedConviction / 1e18, 0.1);
+        expect(parseFloat(ethers.utils.formatUnits(conviction, 18))).to.be.closeTo(expectedConviction / 1e18, 1.5);
       });
 
       it("Should calculate conviction decay correctly after 1 day", async function() {
-        const a = (await myContract.decay()).toNumber() / 1e7;
+        const a = parseFloat((await myContract.getConvictionSettings())[0].toString()) / 1e18;
         const timePassed = 24 * 60 * 60; // 1 day
         const lastConv = await myContract.calculateConviction(timePassed, 0, String(1e18)); // 1 day accrued conviction
         const amount = 0; // staking 0 tokens
         const conviction = await myContract.calculateConviction(timePassed, String(lastConv), String(amount));
         const expectedConviction = lastConv * a ** timePassed + amount * (1 - a ** timePassed) / (1 - a) ** 2;
-        expect(parseFloat(ethers.utils.formatUnits(conviction, 18))).to.be.closeTo(expectedConviction / 1e18, 0.1);
+        expect(parseFloat(ethers.utils.formatUnits(conviction, 18))).to.be.closeTo(expectedConviction / 1e18, 1.5);
       });
     });
 
     describe("calculateReward()", function() {
       it("Should return the amount of funds available to withdraw with this amount of conviction", async function() {
-        const b = (await myContract.maxRatio()).toNumber() / 1e7;
-        const w = (await myContract.weight()).toNumber() / 1e7;
+        const b = parseFloat((await myContract.getConvictionSettings())[1].toString()) / 1e18;
+        const w = parseFloat((await myContract.getConvictionSettings())[2].toString()) / 1e18;
         const staked = await myContract.totalStaked() / 1e18;
         const conviction = 1e18;
         const funds = 100;
@@ -130,6 +119,22 @@ describe("My Dapp", async function () {
         const expectedReward = funds * (b - Math.sqrt(w * staked / (conviction / 1e18)))
         expect(reward / 1e18).to.be.closeTo(expectedReward, 1e-4);
       });
+
+      it("Should return zero if the amount of conviction is zero", async function() {
+        const reward = await myContract.calculateReward(0);
+        expect(reward).to.be.equal(0);
+      });
+
+      it("Should return zero if the amount of conviction is below the threshold", async function() {
+        const b = parseFloat((await myContract.getConvictionSettings())[1].toString()) / 1e18;
+        const w = parseFloat((await myContract.getConvictionSettings())[2].toString()) / 1e18;
+        const staked = await myContract.totalStaked();
+        const minThreshold = w * staked / b ** 2;
+        const reward = await myContract.calculateReward(String(minThreshold - 100));
+        expect(reward).to.be.equal(0);
+        const reward2 = await myContract.calculateReward(String(minThreshold));
+        expect(reward2).to.not.be.equal(0);
+      })
     });
 
     describe.skip("updateConviction()", function() {
