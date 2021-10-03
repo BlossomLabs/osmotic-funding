@@ -3,13 +3,13 @@ const { utils } = require("ethers");
 const fs = require("fs");
 const chalk = require("chalk");
 
-require("@nomiclabs/hardhat-waffle");
-require("@tenderly/hardhat-tenderly");
+import "@nomiclabs/hardhat-ethers";
+import "@nomiclabs/hardhat-waffle";
+import "@tenderly/hardhat-tenderly";
+import "hardhat-deploy";
 
-require("hardhat-deploy");
-
-require("@eth-optimism/hardhat-ovm");
-require("@nomiclabs/hardhat-ethers");
+import { task, HardhatUserConfig } from "hardhat/config";
+import { HttpNetworkUserConfig } from "hardhat/types";
 
 const { isAddress, getAddress, formatUnits, parseUnits } = utils;
 
@@ -42,7 +42,7 @@ function mnemonic() {
   return "";
 }
 
-module.exports = {
+const config: HardhatUserConfig = {
   defaultNetwork,
 
   // if you want to deploy to a testnet, mainnet, or xdai, you will need to configure:
@@ -73,7 +73,7 @@ module.exports = {
       },
     },
     polygon: {
-      url: "https://poly-archival.gateway.pokt.network/v1/lb/61577c4224faff00344c8cdb",// <---- YOUR MORALIS ID! (not limited to infura)
+      url: "https://poly-archival.gateway.pokt.network/v1/lb/61577c4224faff00344c8cdb", // <---- YOUR MORALIS ID! (not limited to infura)
       gasPrice: 1000000000,
       accounts: {
         mnemonic: mnemonic(),
@@ -93,15 +93,9 @@ module.exports = {
       },
     ],
   },
-  ovm: {
-    solcVersion: "0.7.6",
-  },
-  namedAccounts: {
-    deployer: {
-      default: 0, // here this will by default take the first account as deployer
-    },
-  },
 };
+
+export default config;
 
 const DEBUG = false;
 
@@ -124,7 +118,7 @@ task("fundedwallet", "Create a wallet (pk) link and fund it with deployer?")
     "Amount of ETH to send to wallet after generating"
   )
   .addOptionalParam("url", "URL to add pk to")
-  .setAction(async (taskArgs, { network, ethers }) => {
+  .setAction(async (taskArgs, { network, ethers }: any) => {
     const randomWallet = ethers.Wallet.createRandom();
     const privateKey = randomWallet._signingKey().privateKey;
     console.log("🔐 WALLET Generated as " + randomWallet.address + "");
@@ -174,47 +168,43 @@ task("fundedwallet", "Create a wallet (pk) link and fund it with deployer?")
     }
   });
 
-task(
-  "generate",
-  "Create a mnemonic for builder deploys",
-  async (_, { ethers }) => {
-    const bip39 = require("bip39");
-    const hdkey = require("ethereumjs-wallet/hdkey");
-    const mnemonic = bip39.generateMnemonic();
-    if (DEBUG) console.log("mnemonic", mnemonic);
-    const seed = await bip39.mnemonicToSeed(mnemonic);
-    if (DEBUG) console.log("seed", seed);
-    const hdwallet = hdkey.fromMasterSeed(seed);
-    const wallet_hdpath = "m/44'/60'/0'/0/";
-    const account_index = 0;
-    let fullPath = wallet_hdpath + account_index;
-    if (DEBUG) console.log("fullPath", fullPath);
-    const wallet = hdwallet.derivePath(fullPath).getWallet();
-    const privateKey = "0x" + wallet._privKey.toString("hex");
-    if (DEBUG) console.log("privateKey", privateKey);
-    var EthUtil = require("ethereumjs-util");
-    const address =
-      "0x" + EthUtil.privateToAddress(wallet._privKey).toString("hex");
-    console.log(
-      "🔐 Account Generated as " +
-        address +
-        " and set as mnemonic in packages/hardhat"
-    );
-    console.log(
-      "💬 Use 'yarn run account' to get more information about the deployment account."
-    );
+task("generate", "Create a mnemonic for builder deploys", async (_) => {
+  const bip39 = require("bip39");
+  const hdkey = require("ethereumjs-wallet/hdkey");
+  const mnemonic = bip39.generateMnemonic();
+  if (DEBUG) console.log("mnemonic", mnemonic);
+  const seed = await bip39.mnemonicToSeed(mnemonic);
+  if (DEBUG) console.log("seed", seed);
+  const hdwallet = hdkey.fromMasterSeed(seed);
+  const wallet_hdpath = "m/44'/60'/0'/0/";
+  const account_index = 0;
+  let fullPath = wallet_hdpath + account_index;
+  if (DEBUG) console.log("fullPath", fullPath);
+  const wallet = hdwallet.derivePath(fullPath).getWallet();
+  const privateKey = "0x" + wallet._privKey.toString("hex");
+  if (DEBUG) console.log("privateKey", privateKey);
+  var EthUtil = require("ethereumjs-util");
+  const address =
+    "0x" + EthUtil.privateToAddress(wallet._privKey).toString("hex");
+  console.log(
+    "🔐 Account Generated as " +
+      address +
+      " and set as mnemonic in packages/hardhat"
+  );
+  console.log(
+    "💬 Use 'yarn run account' to get more information about the deployment account."
+  );
 
-    fs.writeFileSync("./" + address + ".txt", mnemonic.toString());
-    fs.writeFileSync("./mnemonic.txt", mnemonic.toString());
-  }
-);
+  fs.writeFileSync("./" + address + ".txt", mnemonic.toString());
+  fs.writeFileSync("./mnemonic.txt", mnemonic.toString());
+});
 
 task(
   "mineContractAddress",
   "Looks for a deployer account that will give leading zeros"
 )
   .addParam("searchFor", "String to search for")
-  .setAction(async (taskArgs, { network, ethers }) => {
+  .setAction(async (taskArgs) => {
     let contract_address = "";
     let address;
 
@@ -303,9 +293,8 @@ task(
     for (let n in config.networks) {
       //console.log(config.networks[n],n)
       try {
-        let provider = new ethers.providers.JsonRpcProvider(
-          config.networks[n].url
-        );
+        const network = config.networks[n] as HttpNetworkUserConfig;
+        let provider = new ethers.providers.JsonRpcProvider(network.url);
         let balance = await provider.getBalance(address);
         console.log(" -- " + n + " --  -- -- 📡 ");
         console.log("   balance: " + ethers.utils.formatEther(balance));
@@ -394,6 +383,7 @@ task("send", "Send ETH")
       ).toHexString(),
       gasLimit: taskArgs.gasLimit ? taskArgs.gasLimit : 24000,
       chainId: network.config.chainId,
+      data: null,
     };
 
     if (taskArgs.data !== undefined) {
@@ -404,4 +394,4 @@ task("send", "Send ETH")
     debug(JSON.stringify(txRequest, null, 2));
 
     return send(fromSigner, txRequest);
-  }); 
+  });

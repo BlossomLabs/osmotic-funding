@@ -2,9 +2,13 @@
 
 //const { ethers } = require("hardhat");
 
-module.exports = async ({ getNamedAccounts, deployments }) => {
+import { DeployFunction } from "hardhat-deploy/types";
+
+const deployFunc: DeployFunction = async (hre) => {
+  const { deployments, getNamedAccounts } = hre;
   const { deploy } = deployments;
   const { deployer } = await getNamedAccounts();
+
   await deploy("SuperConvictionVoting", {
     // Learn more about args here: https://www.npmjs.com/package/hardhat-deploy#deploymentsdeploy
     from: deployer,
@@ -48,4 +52,7 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
   });
   */
 };
-module.exports.tags = ["SuperConvictionVoting"];
+
+deployFunc.tags = ["SuperConvictionVoting"];
+
+export default deployFunc;

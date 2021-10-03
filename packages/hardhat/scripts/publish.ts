@@ -5,7 +5,7 @@ const graphDir = "../subgraph";
 const deploymentsDir = "./deployments";
 const publishDir = "../react-app/src/contracts";
 
-function publishContract(contractName, networkName) {
+function publishContract(contractName: string, networkName: string): Boolean {
   try {
     let contract = fs
       .readFileSync(`${deploymentsDir}/${networkName}/${contractName}.json`)
