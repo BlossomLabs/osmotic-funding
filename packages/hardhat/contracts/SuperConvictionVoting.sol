@@ -36,7 +36,6 @@ contract SuperConvictionVoting is Ownable {
   uint256 public decay;
   uint256 public maxRatio;
   uint256 public weight;
-  uint256 public minActiveStake;
   uint256 public proposalCounter;
   uint256 public totalStaked;
 
@@ -44,7 +43,7 @@ contract SuperConvictionVoting is Ownable {
   mapping(address => uint256) internal totalVoterStake;
   mapping(address => EnumerableSet.UintSet) internal voterStakedProposals;
 
-  event ConvictionSettingsChanged(uint256 decay, uint256 maxRatio, uint256 weight, uint256 minThresholdStakePercentage);
+  event ConvictionSettingsChanged(uint256 decay, uint256 maxRatio, uint256 weight);
   event ProposalAdded(address indexed entity, uint256 indexed id, string title, bytes link, uint256 amount, address beneficiary);
   event StakeAdded(address indexed entity, uint256 indexed id, uint256  amount, uint256 tokensStaked, uint256 totalTokensStaked, uint256 conviction);
   event StakeWithdrawn(address entity, uint256 indexed id, uint256 amount, uint256 tokensStaked, uint256 totalTokensStaked, uint256 conviction);
@@ -66,29 +65,26 @@ contract SuperConvictionVoting is Ownable {
     address _requestToken,
     uint256 _decay,
     uint256 _maxRatio,
-    uint256 _weight,
-    uint256 _minActiveStake
+    uint256 _weight
   ) {
     require(address(_stakeToken) != _requestToken, "STAKE_AND_REQUEST_TOKENS_MUST_BE_DIFFERENT");
     stakeToken = _stakeToken;
     requestToken = _requestToken;
-    setConvictionSettings(_decay, _maxRatio, _weight, _minActiveStake);
+    setConvictionSettings(_decay, _maxRatio, _weight);
   }
 
   function setConvictionSettings(
     uint256 _decay,
     uint256 _maxRatio,
-    uint256 _weight,
-    uint256 _minActiveStake
+    uint256 _weight
   )
     public onlyOwner
   {
     decay = _decay;
     maxRatio = _maxRatio;
     weight = _weight;
-    minActiveStake = _minActiveStake;
 
-    emit ConvictionSettingsChanged(_decay, _maxRatio, _weight, _minActiveStake);
+    emit ConvictionSettingsChanged(_decay, _maxRatio, _weight);
   }
 
   function addProposal(
@@ -125,7 +121,7 @@ contract SuperConvictionVoting is Ownable {
 
     require(proposal.requestedAmount > 0, "CANNOT_EXECUTE_ZERO_VALUE_PROPOSAL");
     updateConviction(proposal);
-    require(proposal.convictionLast > calculateThreshold(proposal.requestedAmount), "INSUFFICIENT_CONVICION");
+    require(proposal.requestedAmount <= calculateReward(proposal.convictionLast), "INSUFFICIENT_CONVICION");
 
     proposal.active = false;
     IERC20(requestToken).safeTransfer(proposal.beneficiary, proposal.requestedAmount);
@@ -208,17 +204,26 @@ contract SuperConvictionVoting is Ownable {
     return (atTWO_128.mul(_lastConv).add(_oldAmount.mul(D).mul(TWO_128.sub(atTWO_128)).div(DsubA.mul(DsubA)).mul(D))).add(TWO_127) >> 128;
   }
 
-  function calculateThreshold(uint256 _requestedAmount) public view returns (uint256 _threshold) {
+  function calculateReward(uint256 _conviction) public view returns (uint256 _amount) {
+    if (_conviction == 0) {
+      return 0;
+    }
     uint256 funds = IERC20(requestToken).balanceOf(address(this));
-    require(maxRatio.mul(funds) > _requestedAmount.mul(D), "AMOUNT_OVER_MAX_RATIO");
-    // denom = maxRatio * 2^64 / D  - requestedAmount * 2^64 / funds
-    uint256 denom = (maxRatio << 64).div(D).sub((_requestedAmount << 64).div(funds));
-    // _threshold = (weight * 2^128 / D) / (denom^2 / 2^64) * totalStaked * D / 2^128
-    _threshold = ((weight << 128).div(D).div(denom.mul(denom) >> 64)).mul(D).mul(_totalStaked()) >> 64;
+    uint256 p = _sqrt(weight.mul(totalStaked).mul(D).div(_conviction));
+    _amount = maxRatio > p ? maxRatio.sub(p).mul(funds).div(D) : 0;
   }
 
-  function _totalStaked() internal view returns (uint256) {
-    return totalStaked < minActiveStake ? minActiveStake : totalStaked;
+  function _sqrt(uint256 y) internal pure returns (uint256 z) {
+    if (y > 3) {
+      z = y;
+      uint256 x = y / 2 + 1;
+      while (x < z) {
+        z = x;
+        x = (y / x + x) / 2;
+      }
+    } else if (y != 0) {
+      z = 1;
+    }
   }
 
   /**

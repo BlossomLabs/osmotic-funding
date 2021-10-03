@@ -33,9 +33,11 @@ describe("My Dapp", async function () {
       const decay = 0.9999999e7;
       const maxRatio = 0.2e7;
       const weight = 0.0025e7;
-      const minActiveStake = 0.05e7;
       
-      myContract = await SuperConvictionVoting.deploy(stakeToken.address, requestToken.address, decay, maxRatio, weight, minActiveStake);
+      myContract = await SuperConvictionVoting.deploy(stakeToken.address, requestToken.address, decay, maxRatio, weight);
+      // requestToken.approve(myContract.address, String(100e18));
+      requestToken.transfer(myContract.address, String(100e18));
+      expect(await requestToken.balanceOf(myContract.address)).to.be.equal(String(100e18));
     });
 
     describe("setConvictionSettings()", function () {
@@ -43,13 +45,11 @@ describe("My Dapp", async function () {
         const newDecay = 0.99999e7;
         const newMaxRatio = 0.1e7;
         const newWeight = 0.002e7;
-        const newMinActiveStake = 0.05e7;
 
-        await myContract.setConvictionSettings(newDecay, newMaxRatio, newWeight, newMinActiveStake);
+        await myContract.setConvictionSettings(newDecay, newMaxRatio, newWeight);
         expect(await myContract.decay()).to.equal(newDecay);
         expect(await myContract.maxRatio()).to.equal(newMaxRatio);
         expect(await myContract.weight()).to.equal(newWeight);
-        expect(await myContract.minActiveStake()).to.equal(newMinActiveStake);
       });
     });
 
@@ -119,6 +119,19 @@ describe("My Dapp", async function () {
       });
     });
 
+    describe("calculateReward()", function() {
+      it("Should return the amount of funds available to withdraw with this amount of conviction", async function() {
+        const b = (await myContract.maxRatio()).toNumber() / 1e7;
+        const w = (await myContract.weight()).toNumber() / 1e7;
+        const staked = await myContract.totalStaked() / 1e18;
+        const conviction = 1e18;
+        const funds = 100;
+        const reward = await myContract.calculateReward(String(conviction));
+        const expectedReward = funds * (b - Math.sqrt(w * staked / (conviction / 1e18)))
+        expect(reward / 1e18).to.be.closeTo(expectedReward, 1e-4);
+      });
+    });
+
     describe.skip("updateConviction()", function() {
       it("Should update last conviction and last time", async function() {
 
@@ -139,15 +152,23 @@ describe("My Dapp", async function () {
       });
     });
 
-    describe.skip("executeProposal()", function() {
+    describe("executeProposal()", function() {
       it("Should execute a proposal", async function() {
         await myContract.executeProposal(0);
+        expect(await requestToken.balanceOf(beneficiary.address)).to.be.equal(String(2e18));
       });
     });
 
     describe("withdrawInactiveStakedTokens()", function() {
       it("Should withdraw tokens from executed proposals", async function() {
         await myContract.withdrawInactiveStakedTokens(owner.address);
+        const [,, stakedTokens] = await myContract.getProposal(0);
+        const ownerStake = await myContract.getProposalVoterStake(0, owner.address);
+        const totalOwnerStake = await myContract.getTotalVoterStake(owner.address);
+        expect(await stakeToken.balanceOf(owner.address)).to.be.equal(String(100e18));
+        expect(stakedTokens).to.be.equal(String(0));
+        expect(ownerStake).to.be.equal(String(0));
+        expect(totalOwnerStake).to.be.equal(String(0));
       })
     })
   });
