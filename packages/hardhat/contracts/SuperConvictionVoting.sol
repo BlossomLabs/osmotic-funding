@@ -72,10 +72,10 @@ contract SuperConvictionVoting is Ownable {
     require(address(_stakeToken) != _requestToken, "STAKE_AND_REQUEST_TOKENS_MUST_BE_DIFFERENT");
     stakeToken = _stakeToken;
     requestToken = _requestToken;
-    setConvictionCalculationSettings(_decay, _maxRatio, _weight, _minActiveStake);
+    setConvictionSettings(_decay, _maxRatio, _weight, _minActiveStake);
   }
 
-  function setConvictionCalculationSettings(
+  function setConvictionSettings(
     uint256 _decay,
     uint256 _maxRatio,
     uint256 _weight,
@@ -124,7 +124,7 @@ contract SuperConvictionVoting is Ownable {
     Proposal storage proposal = proposals[_proposalId];
 
     require(proposal.requestedAmount > 0, "CANNOT_EXECUTE_ZERO_VALUE_PROPOSAL");
-    _calculateAndSetConviction(proposal, proposal.stakedTokens);
+    updateConviction(proposal);
     require(proposal.convictionLast > calculateThreshold(proposal.requestedAmount), "INSUFFICIENT_CONVICION");
 
     proposal.active = false;
@@ -135,10 +135,62 @@ contract SuperConvictionVoting is Ownable {
 
   function cancelProposal(uint256 _proposalId) external activeProposal(_proposalId) {
     Proposal storage proposal = proposals[_proposalId];
-    require(proposal.submitter == msg.sender, "SENDER_CANNOT_CANCEL");
+    require(proposal.submitter == msg.sender || owner() == msg.sender, "SENDER_CANNOT_CANCEL");
     proposal.active = false;
 
     emit ProposalCancelled(_proposalId);
+  }
+
+  /**
+    * @dev Get proposal details
+    * @param _proposalId Proposal id
+    * @return requestedAmount Requested amount
+    * @return beneficiary Beneficiary address
+    * @return stakedTokens Current total stake of tokens on this proposal
+    * @return convictionLast Conviction this proposal had last time calculateAndSetConviction was called
+    * @return timeLast Time when calculateAndSetConviction was called
+    * @return active True if proposal has already been executed
+    * @return submitter Submitter of the proposal
+    */
+    function getProposal(uint256 _proposalId) public view returns (
+      uint256 requestedAmount,
+      address beneficiary,
+      uint256 stakedTokens,
+      uint256 convictionLast,
+      uint256 timeLast,
+      bool active,
+      address submitter
+    )
+    {
+      Proposal storage proposal = proposals[_proposalId];
+      return (
+        proposal.requestedAmount,
+        proposal.beneficiary,
+        proposal.stakedTokens,
+        proposal.convictionLast,
+        proposal.timeLast,
+        proposal.active,
+        proposal.submitter
+      );
+    }
+
+  /**
+   * @notice Get stake of voter `_voter` on proposal #`_proposalId`
+   * @param _proposalId Proposal id
+   * @param _voter Voter address
+   * @return Proposal voter stake
+   */
+  function getProposalVoterStake(uint256 _proposalId, address _voter) public view returns (uint256) {
+    return proposals[_proposalId].voterStake[_voter];
+  }
+
+  /**
+   * @notice Get the total stake of voter `_voter` on all proposals
+   * @param _voter Voter address
+   * @return Total voter stake
+   */
+  function getTotalVoterStake(address _voter) public view returns (uint256) {
+    return totalVoterStake[_voter];
   }
 
   function calculateConviction(
@@ -148,21 +200,21 @@ contract SuperConvictionVoting is Ownable {
   )
     public view returns(uint256)
   {
-    uint256 t = uint256(_timePassed);
     // atTWO_128 = 2^128 * a^t
-    uint256 atTWO_128 = _pow((decay << 128).div(D), t);
+    uint256 atTWO_128 = _pow((decay << 128).div(D), _timePassed);
+    uint256 DsubA = D.sub(decay);
     // solium-disable-previous-line
-    // conviction = (atTWO_128 * _lastConv + _oldAmount * D * (2^128 - atTWO_128) / (D - aD) + 2^127) / 2^128
-    return (atTWO_128.mul(_lastConv).add(_oldAmount.mul(D).mul(TWO_128.sub(atTWO_128)).div(D - decay))).add(TWO_127) >> 128;
+    // conviction = (atTWO_128 * _lastConv + _oldAmount * D * (2^128 - atTWO_128) / ((D - aD)^2 * D) + 2^127) / 2^128
+    return (atTWO_128.mul(_lastConv).add(_oldAmount.mul(D).mul(TWO_128.sub(atTWO_128)).div(DsubA.mul(DsubA)).mul(D))).add(TWO_127) >> 128;
   }
 
   function calculateThreshold(uint256 _requestedAmount) public view returns (uint256 _threshold) {
     uint256 funds = IERC20(requestToken).balanceOf(address(this));
     require(maxRatio.mul(funds) > _requestedAmount.mul(D), "AMOUNT_OVER_MAX_RATIO");
-    // denom = maxRatio * 2 ** 64 / D  - requestedAmount * 2 ** 64 / funds
+    // denom = maxRatio * 2^64 / D  - requestedAmount * 2^64 / funds
     uint256 denom = (maxRatio << 64).div(D).sub((_requestedAmount << 64).div(funds));
-    // _threshold = (weight * 2 ** 128 / D) / (denom ** 2 / 2 ** 64) * totalStaked * D / 2 ** 128
-    _threshold = ((weight << 128).div(D).div(denom.mul(denom) >> 64)).mul(D).div(D.sub(decay)).mul(_totalStaked()) >> 64;
+    // _threshold = (weight * 2^128 / D) / (denom^2 / 2^64) * totalStaked * D / 2^128
+    _threshold = ((weight << 128).div(D).div(denom.mul(denom) >> 64)).mul(D).mul(_totalStaked()) >> 64;
   }
 
   function _totalStaked() internal view returns (uint256) {
@@ -208,9 +260,9 @@ contract SuperConvictionVoting is Ownable {
   /**
    * @dev Calculate conviction and store it on the proposal
    * @param _proposal Proposal
-   * @param _oldStaked Amount of tokens staked on a proposal until now
    */
-  function _calculateAndSetConviction(Proposal storage _proposal, uint256 _oldStaked) internal {
+  function updateConviction(Proposal storage _proposal) internal {
+    uint256 _oldStaked = _proposal.stakedTokens;
     assert(_proposal.timeLast <= block.timestamp);
     if (_proposal.timeLast == block.timestamp) {
       return; // Conviction already stored
@@ -237,19 +289,18 @@ contract SuperConvictionVoting is Ownable {
 
     uint256 unstakedAmount = stakeToken.balanceOf(_from).sub(totalVoterStake[_from]);
     if (_amount > unstakedAmount) {
-      _withdrawInactiveStakedTokens(_amount.sub(unstakedAmount), _from);
+      withdrawInactiveStakedTokens(_from);
     }
 
     require(totalVoterStake[_from].add(_amount) <= stakeToken.balanceOf(_from), "STAKING_MORE_THAN_AVAILABLE");
 
-    uint256 previousStake = proposal.stakedTokens;
-    _updateVoterStakedProposals(_proposalId, _from, _amount, true);
-
     if (proposal.timeLast == 0) {
       proposal.timeLast = block.timestamp;
     } else {
-      _calculateAndSetConviction(proposal, previousStake);
+      updateConviction(proposal);
     }
+
+    _updateVoterStakedProposals(_proposalId, _from, _amount, true);
 
     emit StakeAdded(_from, _proposalId, _amount, proposal.voterStake[_from], proposal.stakedTokens, proposal.convictionLast);
   }
@@ -265,44 +316,36 @@ contract SuperConvictionVoting is Ownable {
     require(proposal.voterStake[_from] >= _amount, "WITHDRAW_MORE_THAN_STAKED");
     require(_amount > 0, "AMOUNT_CAN_NOT_BE_ZERO");
 
-    uint256 previousStake = proposal.stakedTokens;
-    _updateVoterStakedProposals(_proposalId, _from, _amount, false);
-
     if (proposal.active) {
-      _calculateAndSetConviction(proposal, previousStake);
+      updateConviction(proposal);
     }
+
+    _updateVoterStakedProposals(_proposalId, _from, _amount, false);
 
     emit StakeWithdrawn(_from, _proposalId, _amount, proposal.voterStake[_from], proposal.stakedTokens, proposal.convictionLast);
   }
 
   /**
-   * @dev Withdraw staked tokens from executed proposals until a target amount is reached.
-   * @param _targetAmount Target at which to stop withdrawing tokens
-   * @param _from Account to withdraw from
+   * @dev Withdraw all staked tokens from executed proposals.
+   * @param _voter Account to withdraw from
    */
-  function _withdrawInactiveStakedTokens(uint256 _targetAmount, address _from) internal {
-    uint256 i = 0;
-    uint256 toWithdraw;
-    uint256 withdrawnAmount = 0;
-
-    EnumerableSet.UintSet storage voterStakedProposalsCopy = voterStakedProposals[_from];
-    uint256[] memory voterStakedProposalsArray = new uint256[](voterStakedProposalsCopy.length());
-    for(i = 0; i < voterStakedProposalsCopy.length(); i++) {
-      voterStakedProposalsArray[i] = voterStakedProposalsCopy.at(i);
+  function withdrawInactiveStakedTokens(address _voter) public {
+    uint256 amount;
+    uint256 i;
+    uint256 len = voterStakedProposals[_voter].length();
+    uint256[] memory voterStakedProposalsCopy = new uint256[](len);
+    for(i = 0; i < len; i++) {
+      voterStakedProposalsCopy[i] = voterStakedProposals[_voter].at(i);
     }
-    i = 0;
-    while (i < voterStakedProposalsArray.length && withdrawnAmount < _targetAmount) {
-      uint256 proposalId = voterStakedProposalsArray[i];
+    for(i = 0; i < len; i++) {
+      uint256 proposalId = voterStakedProposalsCopy[i];
       Proposal storage proposal = proposals[proposalId];
-
       if (!proposal.active) {
-        toWithdraw = proposal.voterStake[_from];
-        if (toWithdraw > 0) {
-          _withdrawFromProposal(proposalId, toWithdraw, _from);
-          withdrawnAmount = withdrawnAmount.add(toWithdraw);
+        amount = proposal.voterStake[_voter];
+        if (amount > 0) {
+          _withdrawFromProposal(proposalId, amount, _voter);
         }
       }
-      i++;
     }
   }
 
