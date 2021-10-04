@@ -1,12 +1,21 @@
-require("dotenv").config();
-const { utils } = require("ethers");
-const fs = require("fs");
-const chalk = require("chalk");
+import dotenv from "dotenv";
+
+import { utils } from "ethers";
+import fs from "fs";
+import chalk from "chalk";
+import hdkey from "ethereumjs-wallet/hdkey";
+import bip39 from "bip39";
+import EthUtil from "ethereumjs-util";
+import rlp from "rlp";
+import keccak from "keccak";
+import qrcode from "qrcode-terminal";
 
 import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-waffle";
 import "@tenderly/hardhat-tenderly";
 import "hardhat-deploy";
+
+dotenv.config;
 
 import { task, HardhatUserConfig } from "hardhat/config";
 import { HttpNetworkUserConfig } from "hardhat/types";
@@ -26,8 +35,6 @@ const { isAddress, getAddress, formatUnits, parseUnits } = utils;
 // Select the network you want to deploy to here:
 //
 const defaultNetwork = "localhost";
-
-const mainnetGwei = 21;
 
 function mnemonic() {
   try {
@@ -118,11 +125,11 @@ task("fundedwallet", "Create a wallet (pk) link and fund it with deployer?")
     "Amount of ETH to send to wallet after generating"
   )
   .addOptionalParam("url", "URL to add pk to")
-  .setAction(async (taskArgs, { network, ethers }: any) => {
+  .setAction(async (taskArgs, { ethers }: any) => {
     const randomWallet = ethers.Wallet.createRandom();
     const privateKey = randomWallet._signingKey().privateKey;
     console.log("🔐 WALLET Generated as " + randomWallet.address + "");
-    let url = taskArgs.url ? taskArgs.url : "http://localhost:3000";
+    const url = taskArgs.url ? taskArgs.url : "http://localhost:3000";
 
     let localDeployerMnemonic;
     try {
@@ -132,19 +139,19 @@ task("fundedwallet", "Create a wallet (pk) link and fund it with deployer?")
       /* do nothing - this file isn't always there */
     }
 
-    let amount = taskArgs.amount ? taskArgs.amount : "0.01";
+    const amount = taskArgs.amount ? taskArgs.amount : "0.01";
     const tx = {
       to: randomWallet.address,
       value: ethers.utils.parseEther(amount),
     };
 
-    //SEND USING LOCAL DEPLOYER MNEMONIC IF THERE IS ONE
+    // SEND USING LOCAL DEPLOYER MNEMONIC IF THERE IS ONE
     // IF NOT SEND USING LOCAL HARDHAT NODE:
     if (localDeployerMnemonic) {
-      let deployerWallet = new ethers.Wallet.fromMnemonic(
-        localDeployerMnemonic
-      );
-      deployerWallet = deployerWallet.connect(ethers.provider);
+      // let deployerWallet = new ethers.Wallet.fromMnemonic(
+      //   localDeployerMnemonic
+      // );
+      // deployerWallet = deployerWallet.connect(ethers.provider);
       console.log(
         "💵 Sending " +
           amount +
@@ -152,7 +159,6 @@ task("fundedwallet", "Create a wallet (pk) link and fund it with deployer?")
           randomWallet.address +
           " using deployer account"
       );
-      let sendresult = await deployerWallet.sendTransaction(tx);
       console.log("\n" + url + "/pk#" + privateKey + "\n");
       return;
     } else {
@@ -168,9 +174,7 @@ task("fundedwallet", "Create a wallet (pk) link and fund it with deployer?")
     }
   });
 
-task("generate", "Create a mnemonic for builder deploys", async (_) => {
-  const bip39 = require("bip39");
-  const hdkey = require("ethereumjs-wallet/hdkey");
+task("generate", "Create a mnemonic for builder deploys", async () => {
   const mnemonic = bip39.generateMnemonic();
   if (DEBUG) console.log("mnemonic", mnemonic);
   const seed = await bip39.mnemonicToSeed(mnemonic);
@@ -178,12 +182,11 @@ task("generate", "Create a mnemonic for builder deploys", async (_) => {
   const hdwallet = hdkey.fromMasterSeed(seed);
   const wallet_hdpath = "m/44'/60'/0'/0/";
   const account_index = 0;
-  let fullPath = wallet_hdpath + account_index;
+  const fullPath = wallet_hdpath + account_index;
   if (DEBUG) console.log("fullPath", fullPath);
   const wallet = hdwallet.derivePath(fullPath).getWallet();
   const privateKey = "0x" + wallet._privKey.toString("hex");
   if (DEBUG) console.log("privateKey", privateKey);
-  var EthUtil = require("ethereumjs-util");
   const address =
     "0x" + EthUtil.privateToAddress(wallet._privKey).toString("hex");
   console.log(
@@ -208,9 +211,6 @@ task(
     let contract_address = "";
     let address;
 
-    const bip39 = require("bip39");
-    const hdkey = require("ethereumjs-wallet/hdkey");
-
     let mnemonic = "";
     while (contract_address.indexOf(taskArgs.searchFor) != 0) {
       mnemonic = bip39.generateMnemonic();
@@ -220,29 +220,25 @@ task(
       const hdwallet = hdkey.fromMasterSeed(seed);
       const wallet_hdpath = "m/44'/60'/0'/0/";
       const account_index = 0;
-      let fullPath = wallet_hdpath + account_index;
+      const fullPath = wallet_hdpath + account_index;
       if (DEBUG) console.log("fullPath", fullPath);
       const wallet = hdwallet.derivePath(fullPath).getWallet();
       const privateKey = "0x" + wallet._privKey.toString("hex");
       if (DEBUG) console.log("privateKey", privateKey);
-      var EthUtil = require("ethereumjs-util");
       address =
         "0x" + EthUtil.privateToAddress(wallet._privKey).toString("hex");
 
-      const rlp = require("rlp");
-      const keccak = require("keccak");
+      const nonce = 0x00; // The nonce must be a hex literal!
+      const sender = address;
 
-      let nonce = 0x00; //The nonce must be a hex literal!
-      let sender = address;
+      const input_arr = [sender, nonce];
+      const rlp_encoded = rlp.encode(input_arr);
 
-      let input_arr = [sender, nonce];
-      let rlp_encoded = rlp.encode(input_arr);
-
-      let contract_address_long = keccak("keccak256")
+      const contract_address_long = keccak("keccak256")
         .update(rlp_encoded)
         .digest("hex");
 
-      contract_address = contract_address_long.substring(24); //Trim the first 24 characters.
+      contract_address = contract_address_long.substring(24); // Trim the first 24 characters.
     }
 
     console.log(
@@ -269,33 +265,29 @@ task(
   "account",
   "Get balance informations for the deployment account.",
   async (_, { ethers }) => {
-    const hdkey = require("ethereumjs-wallet/hdkey");
-    const bip39 = require("bip39");
-    let mnemonic = fs.readFileSync("./mnemonic.txt").toString().trim();
+    const mnemonic = fs.readFileSync("./mnemonic.txt").toString().trim();
     if (DEBUG) console.log("mnemonic", mnemonic);
     const seed = await bip39.mnemonicToSeed(mnemonic);
     if (DEBUG) console.log("seed", seed);
     const hdwallet = hdkey.fromMasterSeed(seed);
     const wallet_hdpath = "m/44'/60'/0'/0/";
     const account_index = 0;
-    let fullPath = wallet_hdpath + account_index;
+    const fullPath = wallet_hdpath + account_index;
     if (DEBUG) console.log("fullPath", fullPath);
     const wallet = hdwallet.derivePath(fullPath).getWallet();
     const privateKey = "0x" + wallet._privKey.toString("hex");
     if (DEBUG) console.log("privateKey", privateKey);
-    var EthUtil = require("ethereumjs-util");
     const address =
       "0x" + EthUtil.privateToAddress(wallet._privKey).toString("hex");
 
-    var qrcode = require("qrcode-terminal");
     qrcode.generate(address);
     console.log("‍📬 Deployer Account is " + address);
-    for (let n in config.networks) {
-      //console.log(config.networks[n],n)
+    for (const n in config.networks) {
+      // console.log(config.networks[n],n)
       try {
         const network = config.networks[n] as HttpNetworkUserConfig;
-        let provider = new ethers.providers.JsonRpcProvider(network.url);
-        let balance = await provider.getBalance(address);
+        const provider = new ethers.providers.JsonRpcProvider(network.url);
+        const balance = await provider.getBalance(address);
         console.log(" -- " + n + " --  -- -- 📡 ");
         console.log("   balance: " + ethers.utils.formatEther(balance));
         console.log(
@@ -390,7 +382,6 @@ task("send", "Send ETH")
       txRequest.data = taskArgs.data;
       debug(`Adding data to payload: ${txRequest.data}`);
     }
-    debug(txRequest.gasPrice / 1000000000 + " gwei");
     debug(JSON.stringify(txRequest, null, 2));
 
     return send(fromSigner, txRequest);

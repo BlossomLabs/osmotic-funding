@@ -1,5 +1,5 @@
-const watch = require("node-watch");
-const { exec } = require("child_process");
+import watch from "node-watch";
+import { exec } from "child_process";
 
 const run = () => {
   console.log("🛠  Compiling & Deploying...");
