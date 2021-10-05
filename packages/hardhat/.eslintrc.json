@@ -1,15 +1,15 @@
-module.exports = {
-  env: {
-    mocha: true,
+{
+  "env": {
+    "mocha": true
   },
-  extends: [
+  "extends": [
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",
-    "plugin:prettier/recommended",
+    "plugin:prettier/recommended"
   ],
-  parser: "@typescript-eslint/parser",
-  plugins: ["@typescript-eslint"],
-  rules: {
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint"],
+  "rules": {
     "prettier/prettier": ["error"],
     "import/prefer-default-export": "off",
     "prefer-destructuring": "off",
@@ -23,11 +23,11 @@ module.exports = {
       "error",
       "always",
       {
-        block: {
-          markers: ["*"],
-          balanced: true,
-        },
-      },
-    ],
-  },
-};
+        "block": {
+          "markers": ["*"],
+          "balanced": true
+        }
+      }
+    ]
+  }
+}
