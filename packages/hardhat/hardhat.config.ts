@@ -14,6 +14,7 @@ import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-waffle";
 import "@tenderly/hardhat-tenderly";
 import "hardhat-deploy";
+import "@typechain/hardhat";
 
 dotenv.config;
 
@@ -61,18 +62,31 @@ const config: HardhatUserConfig = {
 
   networks: {
     localhost: {
-      url: "http://localhost:8545",
-      /*      
-        notice no mnemonic here? it will just use account 0 of the hardhat node to deploy
-        (you can put in a mnemonic here to set the deployer locally)
-      
-      */
+      url: "http://127.0.0.1:8545/",
       forking: {
-        url: "https://poly-archival.gateway.pokt.network/v1/lb/61577c4224faff00344c8cdb",
-        blockNumber: 19734171,
+        url: "https://speedy-nodes-nyc.moralis.io/cff107316eaa320c66ca9c51/polygon/mumbai/archive",
+        blockNumber: 7000000,
+        // xDai
+        // forking: {
+        //   url: "https://xdai-archive.blockscout.com",
+        //   blockNumber: 16246465,
+        // },
+        // Polygon
+        // forking: {
+        //   url: "https://poly-archival.gateway.pokt.network/v1/lb/61577c4224faff00344c8cdb",
+        //   blockNumber: 19734171,
+        // },
+      },
+    },
+    mumbai: {
+      chainId: 80001,
+      url: "https://speedy-nodes-nyc.moralis.io/cff107316eaa320c66ca9c51/polygon/mumbai",
+      accounts: {
+        mnemonic: mnemonic(),
       },
     },
     xdai: {
+      chainId: 100,
       url: "https://rpc.xdaichain.com/",
       gasPrice: 1000000000,
       accounts: {
@@ -80,12 +94,16 @@ const config: HardhatUserConfig = {
       },
     },
     polygon: {
+      chainId: 137,
       url: "https://poly-archival.gateway.pokt.network/v1/lb/61577c4224faff00344c8cdb", // <---- YOUR MORALIS ID! (not limited to infura)
       gasPrice: 1000000000,
       accounts: {
         mnemonic: mnemonic(),
       },
     },
+  },
+  namedAccounts: {
+    deployer: 0,
   },
   solidity: {
     compilers: [

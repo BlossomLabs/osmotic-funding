@@ -7,10 +7,10 @@ const deploymentsDir = "./deployments";
 
 function publishContract(contractName: string, networkName: string): boolean {
   try {
-    let contract = fs
+    let rawContract = fs
       .readFileSync(`${deploymentsDir}/${networkName}/${contractName}.json`)
       .toString();
-    contract = JSON.parse(contract);
+    const contract = JSON.parse(rawContract) as any;
     const graphConfigPath = `${graphDir}/config/config.json`;
     let graphConfig;
     try {

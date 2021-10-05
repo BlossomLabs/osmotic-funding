@@ -1,56 +1,109 @@
 // deploy/00_deploy_your_contract.js
 
-//const { ethers } = require("hardhat");
-
+import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
+import { toDecimals } from "../helpers/web3";
+import { impersonateAddress, setBalance } from "../helpers/rpc";
+import { getConfigByNetworkId } from "../helpers/configuration";
+import { createAppKey } from "../helpers/superfluid";
+import {
+  ISuperfluid,
+  ISuperToken,
+  SuperfluidOwnableGovernance,
+} from "../typechain/";
 
-const deployFunc: DeployFunction = async (hre) => {
-  const { deployments, getNamedAccounts } = hre;
-  const { deploy } = deployments;
+// Initial funds stored in the conviction voting to fund proposals
+const FUNDS_AMOUNT = 500000;
+
+// Conviction voting parameters
+const DECAY = 0.9999999e7;
+const MAX_RATIO = 0.2e7;
+const WEIGHT = 0.0025e7;
+
+const deployWithRegisteringKey = async (
+  hostAddress: string,
+  hre: HardhatRuntimeEnvironment
+) => {
+  const { ethers, getNamedAccounts } = hre;
   const { deployer } = await getNamedAccounts();
 
-  await deploy("SuperConvictionVoting", {
-    // Learn more about args here: https://www.npmjs.com/package/hardhat-deploy#deploymentsdeploy
+  const host = (await ethers.getContractAt(
+    "ISuperfluid",
+    hostAddress
+  )) as ISuperfluid;
+  const governanceAddress = await host.getGovernance();
+  let governance = (await ethers.getContractAt(
+    "SuperfluidOwnableGovernance",
+    governanceAddress
+  )) as SuperfluidOwnableGovernance;
+  const governanceOwnerAddress = await governance.owner();
+  const ownerSigner = await impersonateAddress(governanceOwnerAddress);
+
+  governance = governance.connect(ownerSigner);
+
+  /**
+   * Transfer ownership to deployer account to create a valid
+   * registration key
+   */
+  await (await governance.transferOwnership(deployer)).wait();
+
+  const registrationKey = "osmosis-funding";
+  const appKey = createAppKey(deployer, registrationKey);
+
+  await (await governance.whiteListNewApp(hostAddress, appKey)).wait();
+};
+
+const deployFunc: DeployFunction = async (hre) => {
+  const { deployments, getNamedAccounts, ethers, network } = hre;
+  const { deploy } = deployments;
+  const { deployer } = await getNamedAccounts();
+  const {
+    cfav1,
+    host: hostAddress,
+    requestSuperToken: requestSuperTokenAddress,
+  } = getConfigByNetworkId(network.config.chainId);
+
+  console.log(hostAddress);
+  // Deploy stake token
+  const { address: stakeTokenAddress } = await deploy("ERC20Mock", {
     from: deployer,
-    //args: [ "Hello", ethers.utils.parseEther("1.5") ],
+    args: ["Stake Token", "STK", deployer, String(100e18)],
     log: true,
   });
 
-  /*
-    // Getting a previously deployed contract
-    const SuperConvictionVoting = await ethers.getContract("SuperConvictionVoting", deployer);
-    await SuperConvictionVoting.setPurpose("Hello");
-  
-    To take ownership of superConvictionVoting using the ownable library uncomment next line and add the 
-    address you want to be the owner. 
-    // superConvictionVoting.transferOwnership(YOUR_ADDRESS_HERE);
+  // Deploy Super Conviction Voting
+  const { address: superConvictionVotingAddress } = await deploy(
+    "SuperConvictionVoting",
+    {
+      from: deployer,
+      args: [
+        stakeTokenAddress,
+        requestSuperTokenAddress,
+        DECAY,
+        MAX_RATIO,
+        WEIGHT,
+        hostAddress,
+        cfav1,
+      ],
+      log: true,
+    }
+  );
 
-    //const superConvictionVoting = await ethers.getContractAt('SuperConvictionVoting', "0xaAC799eC2d00C013f1F11c37E654e59B0429DF6A") //<-- if you want to instantiate a version of a contract at a specific address!
-  */
+  // Mint some request tokens to have an initial funding pool
+  const requestSuperTokenSigner = await impersonateAddress(
+    requestSuperTokenAddress
+  );
+  const requestSuperToken = (await ethers.getContractAt(
+    "ISuperToken",
+    requestSuperTokenAddress,
+    requestSuperTokenSigner
+  )) as ISuperToken;
 
-  /*
-  //If you want to send value to an address from the deployer
-  const deployerWallet = ethers.provider.getSigner()
-  await deployerWallet.sendTransaction({
-    to: "0x34aA3F359A9D614239015126635CE7732c18fDF3",
-    value: ethers.utils.parseEther("0.001")
-  })
-  */
-
-  /*
-  //If you want to send some ETH to a contract on deploy (make your constructor payable!)
-  const superConvictionVoting = await deploy("SuperConvictionVoting", [], {
-  value: ethers.utils.parseEther("0.05")
-  });
-  */
-
-  /*
-  //If you want to link a library into your contract:
-  // reference: https://github.com/austintgriffith/scaffold-eth/blob/using-libraries-example/packages/hardhat/scripts/deploy.js#L19
-  const superConvictionVoting = await deploy("SuperConvictionVoting", [], {}, {
-   LibraryName: **LibraryAddress**
-  });
-  */
+  await requestSuperToken.selfMint(
+    superConvictionVotingAddress,
+    toDecimals(FUNDS_AMOUNT),
+    "0x"
+  );
 };
 
 deployFunc.tags = ["SuperConvictionVoting"];

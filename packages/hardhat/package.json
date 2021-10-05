@@ -4,6 +4,8 @@
   "main": "index.js",
   "license": "MIT",
   "devDependencies": {
+    "@typechain/ethers-v5": "^7.1.2",
+    "@typechain/hardhat": "^2.3.0",
     "eslint": "^7.5.0",
     "eslint-config-airbnb": "^18.2.0",
     "eslint-config-prettier": "^6.11.0",
@@ -11,6 +13,7 @@
     "eslint-plugin-prettier": "^3.4.0",
     "ts-generator": "^0.1.1",
     "ts-node": "^10.2.1",
+    "typechain": "^5.1.2",
     "typescript": "^4.4.3"
   },
   "dependencies": {
@@ -18,6 +21,7 @@
     "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers",
     "@nomiclabs/hardhat-waffle": "^2.0.0",
     "@openzeppelin/contracts": "^3.2.0",
+    "@superfluid-finance/ethereum-contracts": "^1.0.0-rc.7",
     "@tenderly/hardhat-tenderly": "^1.0.10",
     "abdk-libraries-solidity": "2.5.0",
     "chai": "^4.2.0",
@@ -33,12 +37,13 @@
   },
   "scripts": {
     "chain": "hardhat node --network hardhat --no-deploy",
-    "fork": "hardhat node --no-deploy --network hardhat --fork https://mainnet.infura.io/v3/460f40a260564ac4a4f4b3fffb032dad",
+    "fork": "hardhat node --no-deploy --network hardhat --fork https://speedy-nodes-nyc.moralis.io/cff107316eaa320c66ca9c51/polygon/mumbai/archive",
     "test": "hardhat test --network hardhat",
     "compile": "hardhat compile",
-    "deploy": "hardhat deploy --export-all ../react-app/src/contracts/hardhat_contracts.json",
-    "postdeploy": "hardhat run scripts/publish.js",
-    "watch": "node scripts/watch.js",
+    "deploy": "hardhat deploy",
+    "deploy:export": "hardhat deploy --export-all ../react-app/src/contracts/hardhat_contracts.json",
+    "postdeploy": "hardhat run scripts/publish.ts",
+    "watch": "node scripts/watch.ts",
     "accounts": "hardhat accounts",
     "balance": "hardhat balance",
     "send": "hardhat send",
