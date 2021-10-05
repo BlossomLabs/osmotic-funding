@@ -164,7 +164,7 @@ function Subgraph(props) {
             onClick={() => {
               console.log("newPurpose", newPurpose);
               /* look how you call setPurpose on your contract: */
-              props.tx(props.writeContracts.SuperConvictionVoting.setPurpose(newPurpose));
+              props.tx(props.writeContracts.OsmoticFunding.setPurpose(newPurpose));
             }}
           >
             Set Purpose

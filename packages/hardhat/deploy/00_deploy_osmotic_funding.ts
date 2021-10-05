@@ -1,5 +1,3 @@
-// deploy/00_deploy_your_contract.js
-
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
 import { toDecimals } from "../helpers/web3";
@@ -10,9 +8,9 @@ import {
   ISuperfluid,
   ISuperToken,
   SuperfluidOwnableGovernance,
-} from "../typechain/";
+} from "../typechain";
 
-// Initial funds stored in the conviction voting to fund proposals
+// Initial funds stored in the osmotic funding app
 const FUNDS_AMOUNT = 500000;
 
 // Conviction voting parameters
@@ -71,23 +69,20 @@ const deployFunc: DeployFunction = async (hre) => {
     log: true,
   });
 
-  // Deploy Super Conviction Voting
-  const { address: superConvictionVotingAddress } = await deploy(
-    "SuperConvictionVoting",
-    {
-      from: deployer,
-      args: [
-        stakeTokenAddress,
-        requestSuperTokenAddress,
-        DECAY,
-        MAX_RATIO,
-        WEIGHT,
-        hostAddress,
-        cfav1,
-      ],
-      log: true,
-    }
-  );
+  // Deploy Osmotic Funding
+  const { address: osmoticFundingAddress } = await deploy("OsmoticFunding", {
+    from: deployer,
+    args: [
+      stakeTokenAddress,
+      requestSuperTokenAddress,
+      DECAY,
+      MAX_RATIO,
+      WEIGHT,
+      hostAddress,
+      cfav1,
+    ],
+    log: true,
+  });
 
   // Mint some request tokens to have an initial funding pool
   const requestSuperTokenSigner = await impersonateAddress(
@@ -100,12 +95,12 @@ const deployFunc: DeployFunction = async (hre) => {
   )) as ISuperToken;
 
   await requestSuperToken.selfMint(
-    superConvictionVotingAddress,
+    osmoticFundingAddress,
     toDecimals(FUNDS_AMOUNT),
     "0x"
   );
 };
 
-deployFunc.tags = ["SuperConvictionVoting"];
+deployFunc.tags = ["OsmoticFunding"];
 
 export default deployFunc;

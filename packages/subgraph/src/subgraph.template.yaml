@@ -3,11 +3,11 @@ schema:
   file: ./src/schema.graphql
 dataSources:
   - kind: ethereum/contract
-    name: SuperConvictionVoting
+    name: OsmoticFunding
     network: localhost
     source:
-      address: "{{localhost_SuperConvictionVotingAddress}}"
-      abi: SuperConvictionVoting
+      address: "{{localhost_OsmoticFundingAddress}}"
+      abi: OsmoticFunding
       startBlock: 1
     mapping:
       kind: ethereum/events
@@ -17,8 +17,8 @@ dataSources:
         - Purpose
         - Sender
       abis:
-        - name: SuperConvictionVoting
-          file: ./abis/localhost_SuperConvictionVoting.json
+        - name: OsmoticFunding
+          file: ./abis/localhost_OsmoticFunding.json
       eventHandlers:
         - event: SetPurpose(address,string)
           handler: handleSetPurpose

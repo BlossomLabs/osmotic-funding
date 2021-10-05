@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "abdk-libraries-solidity/ABDKMath64x64.sol";
 import "./FluidFunding.sol";
 
-contract SuperConvictionVoting is Ownable, FluidFunding {
+contract OsmoticFunding is Ownable, FluidFunding {
   using ABDKMath64x64 for int128;
   using ABDKMath64x64 for uint256;
   using SafeMath for uint256;
