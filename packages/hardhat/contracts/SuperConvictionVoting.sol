@@ -9,8 +9,9 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "abdk-libraries-solidity/ABDKMath64x64.sol";
+import "./FluidFunding.sol";
 
-contract SuperConvictionVoting is Ownable {
+contract SuperConvictionVoting is Ownable, FluidFunding {
   using ABDKMath64x64 for int128;
   using ABDKMath64x64 for uint256;
   using SafeMath for uint256;
@@ -65,9 +66,13 @@ contract SuperConvictionVoting is Ownable {
     address _requestToken,
     uint256 _decay,
     uint256 _maxRatio,
-    uint256 _weight
-  ) {
+    uint256 _weight,
+    ISuperfluid _host,
+    IConstantFlowAgreementV1 _cfa
+    // string memory _registrationKey
+  ) FluidFunding(_host, _cfa, ISuperToken(_requestToken)) {
     require(address(_stakeToken) != _requestToken, "STAKE_AND_REQUEST_TOKENS_MUST_BE_DIFFERENT");
+
     stakeToken = _stakeToken;
     requestToken = _requestToken;
     setConvictionSettings(_decay, _maxRatio, _weight);
@@ -265,6 +270,9 @@ contract SuperConvictionVoting is Ownable {
     }
 
     _updateVoterStakedProposals(_proposalId, _from, _amount, true);
+
+
+    _updateFundingFlow(proposal.beneficiary, calculateReward(proposal.convictionLast));
 
     emit StakeAdded(_from, _proposalId, _amount, proposal.voterStake[_from], proposal.stakedTokens, proposal.convictionLast);
   }
