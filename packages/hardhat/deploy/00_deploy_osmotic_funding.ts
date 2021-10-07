@@ -1,9 +1,9 @@
-import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
-import { toDecimals } from "../helpers/web3";
-import { impersonateAddress, setBalance } from "../helpers/rpc";
+import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { getConfigByNetworkId } from "../helpers/configuration";
+import { impersonateAddress } from "../helpers/rpc";
 import { createAppKey } from "../helpers/superfluid";
+import { toDecimals } from "../helpers/web3";
 import {
   ISuperfluid,
   ISuperToken,
@@ -61,7 +61,6 @@ const deployFunc: DeployFunction = async (hre) => {
     requestSuperToken: requestSuperTokenAddress,
   } = getConfigByNetworkId(network.config.chainId);
 
-  console.log(hostAddress);
   // Deploy stake token
   const { address: stakeTokenAddress } = await deploy("ERC20Mock", {
     from: deployer,

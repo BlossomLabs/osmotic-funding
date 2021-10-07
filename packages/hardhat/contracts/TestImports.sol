@@ -7,7 +7,7 @@ pragma solidity 0.7.6;
 import "@superfluid-finance/ethereum-contracts/contracts/gov/SuperfluidOwnableGovernance.sol";
 
 contract TestImports {
-    constructor() public {
-        // solium-disable-previous-line no-empty-blocks
-    }
+  constructor() public {
+      // solium-disable-previous-line no-empty-blocks
+  }
 }

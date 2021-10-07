@@ -2,14 +2,16 @@
 pragma solidity 0.7.6;
 pragma experimental ABIEncoderV2;
 
+import { ISuperfluid, ISuperToken } from "@superfluid-finance/ethereum-contracts/contracts/interfaces/superfluid/ISuperfluid.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/EnumerableSet.sol";
+import { ABDKMath64x64 } from "abdk-libraries-solidity/ABDKMath64x64.sol";
+import { IAdaptiveFlowAgreementV1 } from "./agreement/IAdaptiveFlowAgreementV1.sol";
+import { FluidFunding } from "./FluidFunding.sol";
 import "hardhat/console.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/EnumerableSet.sol";
-import "abdk-libraries-solidity/ABDKMath64x64.sol";
-import "./FluidFunding.sol";
 
 contract OsmoticFunding is Ownable, FluidFunding {
   using ABDKMath64x64 for int128;
@@ -19,6 +21,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
   using EnumerableSet for EnumerableSet.UintSet;
 
   uint64 constant public MAX_STAKED_PROPOSALS = 10;
+  // Shift to left to leave space for decimals
   int128 constant private ONE = 1 << 64;
 
   struct Proposal {
@@ -68,9 +71,9 @@ contract OsmoticFunding is Ownable, FluidFunding {
     uint256 _maxRatio,
     uint256 _weight,
     ISuperfluid _host,
-    IConstantFlowAgreementV1 _cfa
+    IAdaptiveFlowAgreementV1 _afa
     // string memory _registrationKey
-  ) FluidFunding(_host, _cfa, ISuperToken(_requestToken)) {
+  ) FluidFunding(_host, _afa, ISuperToken(_requestToken)) {
     require(address(_stakeToken) != _requestToken, "STAKE_AND_REQUEST_TOKENS_MUST_BE_DIFFERENT");
 
     stakeToken = _stakeToken;
@@ -272,7 +275,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
     _updateVoterStakedProposals(_proposalId, _from, _amount, true);
 
 
-    _updateFundingFlow(proposal.beneficiary, calculateReward(proposal.convictionLast));
+    // _updateFundingFlow(proposal.beneficiary, calculateReward(proposal.convictionLast));
 
     emit StakeAdded(_from, _proposalId, _amount, proposal.voterStake[_from], proposal.stakedTokens, proposal.convictionLast);
   }

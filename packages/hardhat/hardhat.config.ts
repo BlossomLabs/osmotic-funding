@@ -1,25 +1,22 @@
-import dotenv from "dotenv";
-
-import { utils } from "ethers";
-import fs from "fs";
-import chalk from "chalk";
-import hdkey from "ethereumjs-wallet/hdkey";
-import bip39 from "bip39";
-import EthUtil from "ethereumjs-util";
-import rlp from "rlp";
-import keccak from "keccak";
-import qrcode from "qrcode-terminal";
-
 import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-waffle";
 import "@tenderly/hardhat-tenderly";
-import "hardhat-deploy";
 import "@typechain/hardhat";
+import bip39 from "bip39";
+import chalk from "chalk";
+import dotenv from "dotenv";
+import EthUtil from "ethereumjs-util";
+import hdkey from "ethereumjs-wallet/hdkey";
+import { utils } from "ethers";
+import fs from "fs";
+import "hardhat-deploy";
+import { HardhatUserConfig, task } from "hardhat/config";
+import { HttpNetworkUserConfig } from "hardhat/types";
+import keccak from "keccak";
+import qrcode from "qrcode-terminal";
+import rlp from "rlp";
 
 dotenv.config;
-
-import { task, HardhatUserConfig } from "hardhat/config";
-import { HttpNetworkUserConfig } from "hardhat/types";
 
 const { isAddress, getAddress, formatUnits, parseUnits } = utils;
 
@@ -104,6 +101,10 @@ const config: HardhatUserConfig = {
   },
   namedAccounts: {
     deployer: 0,
+    tester: 1,
+  },
+  mocha: {
+    timeout: 0,
   },
   solidity: {
     compilers: [

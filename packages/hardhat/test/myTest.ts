@@ -1,52 +1,79 @@
-import { ethers, deployments } from "hardhat";
-import { use, expect } from "chai";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signers";
+import { expect, use } from "chai";
 import { solidity } from "ethereum-waffle";
+import { deployments, ethers, getNamedAccounts } from "hardhat";
+import { impersonateAddress } from "../helpers/rpc";
+import { ERC20Mock, ISuperToken, OsmoticFunding } from "../typechain";
 
 use(solidity);
 
 describe("My Dapp", async function () {
-  let myContract;
-  let stakeToken;
-  let requestToken;
-  let owner;
-  let beneficiary;
+  let osmoticFunding: OsmoticFunding;
+  let stakeToken: ERC20Mock;
+  let requestToken: ISuperToken;
+  let owner: SignerWithAddress;
+  let beneficiary: SignerWithAddress;
+  const proposal = {
+    title: "Super Proposal",
+    link: ethers.utils.toUtf8Bytes("https://ipfs.io/ipfs/Qm"),
+    requestedAmount: String(2e18),
+  };
+
+  const setUpTests = deployments.createFixture(
+    async ({ deployments, ethers }) => {
+      await deployments.fixture();
+
+      const {
+        ERC20Mock: ERC20MockDeployment,
+        OsmoticFunding: OsmoticFundingDeployment,
+      } = await deployments.all();
+
+      const requestTokenAddress = await deployments.read(
+        "OsmoticFunding",
+        "requestToken"
+      );
+      const requestTokenSigner = await impersonateAddress(requestTokenAddress);
+
+      return {
+        stakeToken: (await ethers.getContractAt(
+          "ERC20Mock",
+          ERC20MockDeployment.address,
+          owner
+        )) as ERC20Mock,
+        osmoticFunding: (await ethers.getContractAt(
+          "OsmoticFunding",
+          OsmoticFundingDeployment.address,
+          owner
+        )) as OsmoticFunding,
+        requestToken: (await ethers.getContractAt(
+          "ISuperToken",
+          requestTokenAddress,
+          requestTokenSigner
+        )) as ISuperToken,
+      };
+    }
+  );
 
   before(async () => {
     [owner, beneficiary] = await ethers.getSigners();
   });
 
+  beforeEach(async () => {
+    ({ osmoticFunding, stakeToken, requestToken } = await setUpTests());
+  });
+
   describe("OsmoticFunding", function () {
     it("Should deploy OsmoticFunding", async function () {
-      const ERC20Mock = await ethers.getContractFactory("ERC20Mock");
-      const osmoticFunding = await ethers.getContractFactory("OsmoticFunding");
+      const { tester } = await getNamedAccounts();
+      const mintedTokens = String(100e18);
 
-      stakeToken = await ERC20Mock.deploy(
-        "Stake Token",
-        "STK",
-        owner.address,
-        String(100e18)
-      );
-      requestToken = await ERC20Mock.deploy(
-        "Request SuperToken",
-        "RST",
-        owner.address,
-        String(100e18)
-      );
-      const decay = 0.9999999e7;
-      const maxRatio = 0.2e7;
-      const weight = 0.0025e7;
+      await requestToken.selfMint(tester, mintedTokens, "0x");
+      await requestToken.selfMint(osmoticFunding.address, mintedTokens, "0x");
 
-      myContract = await osmoticFunding.deploy(
-        stakeToken.address,
-        requestToken.address,
-        decay,
-        maxRatio,
-        weight
+      console.log(
+        (await requestToken.balanceOf(osmoticFunding.address)).toString()
       );
-      requestToken.transfer(myContract.address, String(100e18));
-      expect(await requestToken.balanceOf(myContract.address)).to.be.equal(
-        String(100e18)
-      );
+      expect(await requestToken.balanceOf(tester)).to.be.equal(mintedTokens);
     });
 
     describe("setConvictionSettings()", function () {
@@ -55,23 +82,23 @@ describe("My Dapp", async function () {
         const newMaxRatio = String(0.1e18);
         const newWeight = String(0.002e18);
 
-        await myContract.setConvictionSettings(
+        await osmoticFunding.setConvictionSettings(
           newDecay,
           newMaxRatio,
           newWeight
         );
         expect(
-          (await myContract.getConvictionSettings()).map((bn) => bn.toString())
+          (await osmoticFunding.getConvictionSettings()).map((bn) =>
+            bn.toString()
+          )
         ).to.deep.equal([newDecay, newMaxRatio, newWeight]);
       });
     });
 
     describe("addProposal()", function () {
       it("Should create a new proposal", async function () {
-        const title = "Super Proposal";
-        const link = ethers.utils.toUtf8Bytes("https://ipfs.io/ipfs/Qm");
-        const requestedAmount = String(2e18);
-        await myContract.addProposal(
+        const { title, link, requestedAmount } = proposal;
+        await osmoticFunding.addProposal(
           title,
           link,
           requestedAmount,
@@ -85,7 +112,7 @@ describe("My Dapp", async function () {
           timeLast,
           active,
           submitter,
-        ] = await myContract.getProposal(0);
+        ] = await osmoticFunding.getProposal(0);
         expect(_requestedAmount).to.be.equal(requestedAmount);
         expect(_beneficiary).to.be.equal(beneficiary.address);
         expect(stakedTokens).to.be.equal(0);
@@ -98,17 +125,27 @@ describe("My Dapp", async function () {
 
     describe("stakeToProposal()", function () {
       it("Should stake on proposal", async function () {
+        const { title, link, requestedAmount } = proposal;
         const ownerBalance = await stakeToken.balanceOf(owner.address);
-        await stakeToken.approve(myContract.address, String(1e18));
-        await myContract.stakeToProposal(0, String(1e18));
-        const [, , stakedTokens] = await myContract.getProposal(0);
-        const ownerStake = await myContract.getProposalVoterStake(
+
+        await osmoticFunding.addProposal(
+          title,
+          link,
+          requestedAmount,
+          beneficiary.address
+        );
+        await stakeToken.approve(osmoticFunding.address, String(1e18));
+        await osmoticFunding.stakeToProposal(0, String(1e18));
+
+        const [, , stakedTokens] = await osmoticFunding.getProposal(0);
+        const ownerStake = await osmoticFunding.getProposalVoterStake(
           0,
           owner.address
         );
-        const totalOwnerStake = await myContract.getTotalVoterStake(
+        const totalOwnerStake = await osmoticFunding.getTotalVoterStake(
           owner.address
         );
+
         expect(await stakeToken.balanceOf(owner.address)).to.be.equal(
           ownerBalance.sub(String(1e18))
         );
@@ -121,12 +158,13 @@ describe("My Dapp", async function () {
     describe("calculateConviction()", function () {
       it("Should calculate conviction growth correctly after 1 day", async function () {
         const a =
-          parseFloat((await myContract.getConvictionSettings())[0].toString()) /
-          1e18;
+          parseFloat(
+            (await osmoticFunding.getConvictionSettings())[0].toString()
+          ) / 1e18;
         const timePassed = 24 * 60 * 60; // 1 day
         const lastConv = 0; // conviction starts from scratch
         const amount = 1e18; // staking 1 token
-        const conviction = await myContract.calculateConviction(
+        const conviction = await osmoticFunding.calculateConviction(
           timePassed,
           String(lastConv),
           String(amount)
@@ -141,22 +179,23 @@ describe("My Dapp", async function () {
 
       it("Should calculate conviction growth correctly after 2 days from previous conviction", async function () {
         const a =
-          parseFloat((await myContract.getConvictionSettings())[0].toString()) /
-          1e18;
+          parseFloat(
+            (await osmoticFunding.getConvictionSettings())[0].toString()
+          ) / 1e18;
         const timePassed = 24 * 60 * 60; // 1 day
-        const lastConv = await myContract.calculateConviction(
+        const lastConv = await osmoticFunding.calculateConviction(
           timePassed,
           0,
           String(1e18)
         );
         const amount = 1e18; // staking 1 token
-        const conviction = await myContract.calculateConviction(
+        const conviction = await osmoticFunding.calculateConviction(
           timePassed,
           String(lastConv),
           String(amount)
         );
         const expectedConviction =
-          lastConv * a ** timePassed +
+          (lastConv as any) * a ** timePassed +
           (amount * (1 - a ** timePassed)) / (1 - a) ** 2;
         const expectedConviction2 =
           (amount * (1 - a ** (timePassed * 2))) / (1 - a) ** 2;
@@ -171,22 +210,23 @@ describe("My Dapp", async function () {
 
       it("Should calculate conviction decay correctly after 1 day", async function () {
         const a =
-          parseFloat((await myContract.getConvictionSettings())[0].toString()) /
-          1e18;
+          parseFloat(
+            (await osmoticFunding.getConvictionSettings())[0].toString()
+          ) / 1e18;
         const timePassed = 24 * 60 * 60; // 1 day
-        const lastConv = await myContract.calculateConviction(
+        const lastConv = await osmoticFunding.calculateConviction(
           timePassed,
           0,
           String(1e18)
         ); // 1 day accrued conviction
         const amount = 0; // staking 0 tokens
-        const conviction = await myContract.calculateConviction(
+        const conviction = await osmoticFunding.calculateConviction(
           timePassed,
           String(lastConv),
           String(amount)
         );
         const expectedConviction =
-          lastConv * a ** timePassed +
+          (lastConv as any) * a ** timePassed +
           (amount * (1 - a ** timePassed)) / (1 - a) ** 2;
         expect(
           parseFloat(ethers.utils.formatUnits(conviction, 18))
@@ -197,57 +237,64 @@ describe("My Dapp", async function () {
     describe("calculateReward()", function () {
       it("Should return the amount of funds available to withdraw with this amount of conviction", async function () {
         const b =
-          parseFloat((await myContract.getConvictionSettings())[1].toString()) /
-          1e18;
+          parseFloat(
+            (await osmoticFunding.getConvictionSettings())[1].toString()
+          ) / 1e18;
         const w =
-          parseFloat((await myContract.getConvictionSettings())[2].toString()) /
-          1e18;
-        const staked = (await myContract.totalStaked()) / 1e18;
+          parseFloat(
+            (await osmoticFunding.getConvictionSettings())[2].toString()
+          ) / 1e18;
+        const staked = ((await osmoticFunding.totalStaked()) as any) / 1e18;
         const conviction = 1e18;
         const funds = 100;
-        const reward = await myContract.calculateReward(String(conviction));
+        const reward = await osmoticFunding.calculateReward(String(conviction));
         const expectedReward =
           funds * (b - Math.sqrt((w * staked) / (conviction / 1e18)));
-        expect(reward / 1e18).to.be.closeTo(expectedReward, 1e-4);
+        expect((reward as any) / 1e18).to.be.closeTo(expectedReward, 1e-4);
       });
 
       it("Should return zero if the amount of conviction is zero", async function () {
-        const reward = await myContract.calculateReward(0);
+        const reward = await osmoticFunding.calculateReward(0);
         expect(reward).to.be.equal(0);
       });
 
       it("Should return zero if the amount of conviction is below the threshold", async function () {
         const b =
-          parseFloat((await myContract.getConvictionSettings())[1].toString()) /
-          1e18;
+          parseFloat(
+            (await osmoticFunding.getConvictionSettings())[1].toString()
+          ) / 1e18;
         const w =
-          parseFloat((await myContract.getConvictionSettings())[2].toString()) /
-          1e18;
-        const staked = await myContract.totalStaked();
-        const minThreshold = (w * staked) / b ** 2;
-        const reward = await myContract.calculateReward(
+          parseFloat(
+            (await osmoticFunding.getConvictionSettings())[2].toString()
+          ) / 1e18;
+        const staked = await osmoticFunding.totalStaked();
+        const minThreshold = (w * (staked as any)) / b ** 2;
+        const reward = await osmoticFunding.calculateReward(
           String(minThreshold - 100)
         );
         expect(reward).to.be.equal(0);
-        const reward2 = await myContract.calculateReward(String(minThreshold));
+        const reward2 = await osmoticFunding.calculateReward(
+          String(minThreshold)
+        );
         expect(reward2).to.not.be.equal(0);
       });
     });
 
     describe.skip("updateConviction()", function () {
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       it("Should update last conviction and last time", async function () {});
     });
 
     describe("withdrawFromProposal()", function () {
       it("Should widthdraw from a proposal", async function () {
         const ownerBalance = await stakeToken.balanceOf(owner.address);
-        await myContract.withdrawFromProposal(0, String(0.6e18));
-        const [, , stakedTokens] = await myContract.getProposal(0);
-        const ownerStake = await myContract.getProposalVoterStake(
+        await osmoticFunding.withdrawFromProposal(0, String(0.6e18));
+        const [, , stakedTokens] = await osmoticFunding.getProposal(0);
+        const ownerStake = await osmoticFunding.getProposalVoterStake(
           0,
           owner.address
         );
-        const totalOwnerStake = await myContract.getTotalVoterStake(
+        const totalOwnerStake = await osmoticFunding.getTotalVoterStake(
           owner.address
         );
         expect(await stakeToken.balanceOf(owner.address)).to.be.equal(
@@ -261,7 +308,7 @@ describe("My Dapp", async function () {
 
     describe("executeProposal()", function () {
       it("Should execute a proposal", async function () {
-        await myContract.executeProposal(0);
+        await osmoticFunding.executeProposal(0);
         expect(await requestToken.balanceOf(beneficiary.address)).to.be.equal(
           String(2e18)
         );
@@ -270,13 +317,13 @@ describe("My Dapp", async function () {
 
     describe("withdrawInactiveStakedTokens()", function () {
       it("Should withdraw tokens from executed proposals", async function () {
-        await myContract.withdrawInactiveStakedTokens(owner.address);
-        const [, , stakedTokens] = await myContract.getProposal(0);
-        const ownerStake = await myContract.getProposalVoterStake(
+        await osmoticFunding.withdrawInactiveStakedTokens(owner.address);
+        const [, , stakedTokens] = await osmoticFunding.getProposal(0);
+        const ownerStake = await osmoticFunding.getProposalVoterStake(
           0,
           owner.address
         );
-        const totalOwnerStake = await myContract.getTotalVoterStake(
+        const totalOwnerStake = await osmoticFunding.getTotalVoterStake(
           owner.address
         );
         expect(await stakeToken.balanceOf(owner.address)).to.be.equal(
