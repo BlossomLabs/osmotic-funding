@@ -1,6 +1,14 @@
 {
+  "solidity.enabledAsYouTypeCompilationErrorCheck": true,
+  "solidity.linter": "solhint",
+  "solidity.formatter": "prettier",
+  "solidity.validationDelay": 1500,
+  "[solidity]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
   "solidity.packageDefaultDependenciesDirectory": "node_modules/@scaffold-eth/hardhat/node_modules/",
   "solidity-va.test.defaultUnittestTemplate": "hardhat",
+  "solidity.compileUsingRemoteVersion": "v0.7.6+commit.7338295f",
   "files.exclude": {
     "**/.git": true,
     "**/.svn": true,
@@ -28,10 +36,15 @@
     "**/yarn-error.log": true,
     "**/yarn.lock": true
   },
-  "solidity.compileUsingRemoteVersion": "v0.7.6",
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.codeActionsOnSave": {
-    "source.fixAll": true
-  }
+    "source.fixAll": true,
+    "source.organizeImports": true
+  },
+  "mochaExplorer.env": {
+    "HARDHAT_CONFIG": "hardhat.config.ts",
+    "HARDHAT_COMPILE": "true"
+  },
+  "mochaExplorer.require": ["ts-node/register/transpile-only"]
 }
