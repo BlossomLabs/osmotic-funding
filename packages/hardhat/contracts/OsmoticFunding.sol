@@ -248,7 +248,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
 
     uint256 unstakedAmount = stakeToken.balanceOf(_from).sub(totalVoterStake[_from]);
     if (_amount > unstakedAmount) {
-      withdrawInactiveStakedTokens(_from);
+      withdrawStake(_from, true);
     }
 
     require(totalVoterStake[_from].add(_amount) <= stakeToken.balanceOf(_from), "STAKING_MORE_THAN_AVAILABLE");
@@ -288,10 +288,11 @@ contract OsmoticFunding is Ownable, FluidFunding {
   }
 
   /**
-   * @dev Withdraw all staked tokens from executed proposals.
-   * @param _voter Account to withdraw from
+   * @dev Withdraw all staked tokens from proposals.
+   * @param _voter Account to withdraw from.
+   * @param _onlyCancelled If true withdraw only from cancelled proposals.
    */
-  function withdrawInactiveStakedTokens(address _voter) public {
+  function withdrawStake(address _voter, bool _onlyCancelled) public {
     uint256 amount;
     uint256 i;
     uint256 len = voterStakedProposals[_voter].length();
@@ -302,7 +303,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
     for(i = 0; i < len; i++) {
       uint256 proposalId = voterStakedProposalsCopy[i];
       Proposal storage proposal = proposals[proposalId];
-      if (!proposal.active) {
+      if (!_onlyCancelled || !proposal.active) { // if _onlyCancelled = true, then do not withdraw from active proposals
         amount = proposal.voterStake[_voter];
         if (amount > 0) {
           _withdrawFromProposal(proposalId, amount, _voter);
