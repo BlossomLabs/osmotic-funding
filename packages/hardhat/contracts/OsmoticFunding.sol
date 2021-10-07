@@ -27,8 +27,8 @@ contract OsmoticFunding is Ownable, FluidFunding {
   struct Proposal {
     address beneficiary;
     uint256 stakedTokens;
-    uint256 convictionLast;
-    uint256 timeLast;
+    uint256 lastRate;
+    uint256 lastTime;
     bool active;
     mapping(address => uint256) voterStake;
     address submitter;
@@ -48,9 +48,8 @@ contract OsmoticFunding is Ownable, FluidFunding {
 
   event FundingSettingsChanged(uint256 decay, uint256 maxRatio, uint256 minStakeRatio);
   event ProposalAdded(address indexed entity, uint256 indexed id, bytes link, address beneficiary);
-  event StakeAdded(address indexed entity, uint256 indexed id, uint256  amount, uint256 tokensStaked, uint256 totalTokensStaked, uint256 conviction);
-  event StakeWithdrawn(address entity, uint256 indexed id, uint256 amount, uint256 tokensStaked, uint256 totalTokensStaked, uint256 conviction);
-  event ProposalExecuted(uint256 indexed id, uint256 conviction);
+  event StakeAdded(address indexed entity, uint256 indexed id, uint256  amount, uint256 tokensStaked, uint256 totalTokensStaked, uint256 lastRate);
+  event StakeWithdrawn(address entity, uint256 indexed id, uint256 amount, uint256 tokensStaked, uint256 totalTokensStaked, uint256 lastRate);
   event ProposalCancelled(uint256 indexed id);
 
   modifier proposalExists(uint256 _proposalId) {
@@ -103,8 +102,8 @@ contract OsmoticFunding is Ownable, FluidFunding {
     Proposal storage p = proposals[proposalCounter];
     p.beneficiary = _beneficiary;
     p.stakedTokens = 0;
-    p.convictionLast = 0;
-    p.timeLast = 0;
+    p.lastRate = 0;
+    p.lastTime = 0;
     p.active = true;
     p.submitter = msg.sender;
 
@@ -141,16 +140,16 @@ contract OsmoticFunding is Ownable, FluidFunding {
     * @param _proposalId Proposal id
     * @return beneficiary Beneficiary address
     * @return stakedTokens Current total stake of tokens on this proposal
-    * @return convictionLast Conviction this proposal had last time calculateAndSetConviction was called
-    * @return timeLast Time when calculateAndSetConviction was called
+    * @return lastRate Last rate this proposal had last checkpoint
+    * @return lastTime Last time we saved a checkpoint
     * @return active True if proposal has already been executed
     * @return submitter Submitter of the proposal
     */
     function getProposal(uint256 _proposalId) public view returns (
       address beneficiary,
       uint256 stakedTokens,
-      uint256 convictionLast,
-      uint256 timeLast,
+      uint256 lastRate,
+      uint256 lastTime,
       bool active,
       address submitter
     )
@@ -159,8 +158,8 @@ contract OsmoticFunding is Ownable, FluidFunding {
       return (
         proposal.beneficiary,
         proposal.stakedTokens,
-        proposal.convictionLast,
-        proposal.timeLast,
+        proposal.lastRate,
+        proposal.lastTime,
         proposal.active,
         proposal.submitter
       );
@@ -185,17 +184,29 @@ contract OsmoticFunding is Ownable, FluidFunding {
     return totalVoterStake[_voter];
   }
 
-  function calculateConviction(
+  /**
+   * @notice Get current
+   * @dev rate = (alpha ^ time * lastRate + _targetRate * (1 - alpha ^ time)
+   */
+  function calculateRate(
     uint256 _timePassed,
-    uint256 _lastConv,
-    uint256 _oldAmount
+    uint256 _lastRate,
+    uint256 _targetRate
   )
     public view returns(uint256)
   {
     int128 at = decay.pow(_timePassed);
-    int128 oneSubA = ONE.sub(decay);
-    // conviction = (alpha ^ time * lastConv + _oldAmount * (1 - alpha ^ time) / (1 - alpha) ^ 2
-    return at.mulu(_lastConv).add(ONE.sub(at).div(oneSubA.mul(oneSubA)).mulu(_oldAmount));
+    return at.mulu(_lastRate).add(ONE.sub(at).mulu(_targetRate));
+  }
+
+  function rate(uint256 _proposalId) public view returns (uint256 _rate) {
+    Proposal storage proposal = proposals[_proposalId];
+    assert(proposal.lastTime <= block.timestamp);
+    return _rate = calculateRate(
+      block.timestamp - proposal.lastTime, // we assert it doesn't overflow above
+      proposal.lastRate,
+      calculateTargetRate(proposal.stakedTokens)
+    );
   }
 
   /**
@@ -212,23 +223,17 @@ contract OsmoticFunding is Ownable, FluidFunding {
   }
 
   /**
-   * @dev Calculate conviction and store it on the proposal
-   * @param _proposal Proposal
+   * @dev Calculate rate and store it on the proposal
+   * @param _proposalId Proposal
    */
-  function updateConviction(Proposal storage _proposal) internal {
-    uint256 _oldStaked = _proposal.stakedTokens;
-    assert(_proposal.timeLast <= block.timestamp);
-    if (_proposal.timeLast == block.timestamp) {
-      return; // Conviction already stored
+  function _saveCheckpoint(uint256 _proposalId) internal {
+    Proposal storage proposal = proposals[_proposalId];
+    if (proposal.lastTime == block.timestamp) {
+      return; // Rate already stored
     }
-    // calculateConviction and store it
-    uint256 conviction = calculateConviction(
-      block.timestamp - _proposal.timeLast, // we assert it doesn't overflow above
-      _proposal.convictionLast,
-      _oldStaked
-    );
-    _proposal.timeLast = block.timestamp;
-    _proposal.convictionLast = conviction;
+    // calculateRate and store it
+    proposal.lastRate = rate(_proposalId);
+    proposal.lastTime = block.timestamp;
   }
 
   /**
@@ -248,18 +253,18 @@ contract OsmoticFunding is Ownable, FluidFunding {
 
     require(totalVoterStake[_from].add(_amount) <= stakeToken.balanceOf(_from), "STAKING_MORE_THAN_AVAILABLE");
 
-    if (proposal.timeLast == 0) {
-      proposal.timeLast = block.timestamp;
+    if (proposal.lastTime == 0) {
+      proposal.lastTime = block.timestamp;
     } else {
-      updateConviction(proposal);
+      _saveCheckpoint(_proposalId);
     }
 
     _updateVoterStakedProposals(_proposalId, _from, _amount, true);
 
 
-    // _updateFundingFlow(proposal.beneficiary, calculateReward(proposal.convictionLast));
+    // _updateFundingFlow(proposal.beneficiary, calculateReward(proposal.lastRate));
 
-    emit StakeAdded(_from, _proposalId, _amount, proposal.voterStake[_from], proposal.stakedTokens, proposal.convictionLast);
+    emit StakeAdded(_from, _proposalId, _amount, proposal.voterStake[_from], proposal.stakedTokens, proposal.lastRate);
   }
 
   /**
@@ -274,12 +279,12 @@ contract OsmoticFunding is Ownable, FluidFunding {
     require(_amount > 0, "AMOUNT_CAN_NOT_BE_ZERO");
 
     if (proposal.active) {
-      updateConviction(proposal);
+      _saveCheckpoint(_proposalId);
     }
 
     _updateVoterStakedProposals(_proposalId, _from, _amount, false);
 
-    emit StakeWithdrawn(_from, _proposalId, _amount, proposal.voterStake[_from], proposal.stakedTokens, proposal.convictionLast);
+    emit StakeWithdrawn(_from, _proposalId, _amount, proposal.voterStake[_from], proposal.stakedTokens, proposal.lastRate);
   }
 
   /**

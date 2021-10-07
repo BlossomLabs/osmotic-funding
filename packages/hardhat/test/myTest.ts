@@ -104,15 +104,15 @@ describe("My Dapp", async function () {
         const [
           _beneficiary,
           stakedTokens,
-          convictionLast,
-          timeLast,
+          lastRate,
+          lastTime,
           active,
           submitter,
         ] = await osmoticFunding.getProposal(0);
         expect(_beneficiary).to.be.equal(beneficiary.address);
         expect(stakedTokens).to.be.equal(0);
-        expect(convictionLast).to.be.equal(0);
-        expect(timeLast).to.be.equal(0);
+        expect(lastRate).to.be.equal(0);
+        expect(lastTime).to.be.equal(0);
         expect(active).to.be.true;
         expect(submitter).to.be.equal(owner.address);
       });
@@ -143,82 +143,77 @@ describe("My Dapp", async function () {
       });
     });
 
-    describe("calculateConviction()", function () {
-      it("Should calculate conviction growth correctly after 1 day", async function () {
+    describe("calculateRate()", function () {
+      it("Should calculate rate growth correctly after 1 day", async function () {
         const a =
           parseFloat(
             (await osmoticFunding.getFundingSettings())[0].toString()
           ) / 1e18;
         const timePassed = 24 * 60 * 60; // 1 day
-        const lastConv = 0; // conviction starts from scratch
-        const amount = 1e18; // staking 1 token
-        const conviction = await osmoticFunding.calculateConviction(
+        const initialRate = 0; // rate starts at 0
+        const targetRate = 1e18; // target rate is 1 token/s
+        const rateIn1day = await osmoticFunding.calculateRate(
           timePassed,
-          String(lastConv),
-          String(amount)
+          String(initialRate),
+          String(targetRate)
         );
-        const expectedConviction =
-          lastConv * a ** timePassed +
-          (amount * (1 - a ** timePassed)) / (1 - a) ** 2;
+        const expectedRate =
+          initialRate * a ** timePassed + targetRate * (1 - a ** timePassed);
         expect(
-          parseFloat(ethers.utils.formatUnits(conviction, 18))
-        ).to.be.closeTo(expectedConviction / 1e18, 1.5);
+          parseFloat(ethers.utils.formatUnits(rateIn1day, 18))
+        ).to.be.closeTo(expectedRate / 1e18, 1.5);
       });
 
-      it("Should calculate conviction growth correctly after 2 days from previous conviction", async function () {
+      it("Should calculate rate growth correctly after 2 days from previous rate", async function () {
         const a =
           parseFloat(
             (await osmoticFunding.getFundingSettings())[0].toString()
           ) / 1e18;
         const timePassed = 24 * 60 * 60; // 1 day
-        const lastConv = await osmoticFunding.calculateConviction(
+        const rateDay1 = await osmoticFunding.calculateRate(
           timePassed,
           0,
           String(1e18)
         );
-        const amount = 1e18; // staking 1 token
-        const conviction = await osmoticFunding.calculateConviction(
+        const targetRate = 1e18; // target rate of 1 token/s
+        const rateDay2 = await osmoticFunding.calculateRate(
           timePassed,
-          String(lastConv),
-          String(amount)
+          String(rateDay1),
+          String(targetRate)
         );
-        const expectedConviction =
-          (lastConv as any) * a ** timePassed +
-          (amount * (1 - a ** timePassed)) / (1 - a) ** 2;
-        const expectedConviction2 =
-          (amount * (1 - a ** (timePassed * 2))) / (1 - a) ** 2;
-        expect(expectedConviction / expectedConviction2).to.be.closeTo(
-          1,
-          1e-10
-        );
+        const expectedRate =
+          parseFloat(String(rateDay1)) * a ** timePassed +
+          targetRate * (1 - a ** timePassed);
+        const expectedRate2 = targetRate * (1 - a ** (timePassed * 2));
+        expect(expectedRate / expectedRate2).to.be.closeTo(1, 1e-10);
         expect(
-          parseFloat(ethers.utils.formatUnits(conviction, 18))
-        ).to.be.closeTo(expectedConviction / 1e18, 1.5);
+          parseFloat(ethers.utils.formatUnits(rateDay2, 18))
+        ).to.be.closeTo(expectedRate / 1e18, 1.5);
       });
 
-      it("Should calculate conviction decay correctly after 1 day", async function () {
+      it("Should calculate rate decay correctly after 1 day", async function () {
         const a =
           parseFloat(
             (await osmoticFunding.getFundingSettings())[0].toString()
           ) / 1e18;
         const timePassed = 24 * 60 * 60; // 1 day
-        const lastConv = await osmoticFunding.calculateConviction(
+        const rateDay1 = await osmoticFunding.calculateRate(
           timePassed,
           0,
           String(1e18)
-        ); // 1 day accrued conviction
-        const amount = 0; // staking 0 tokens
-        const conviction = await osmoticFunding.calculateConviction(
+        ); // Rate after 1 day
+        const targetRate = 0; // target rate is 0 tokens/s
+        const rateDay2 = await osmoticFunding.calculateRate(
           timePassed,
-          String(lastConv),
-          String(amount)
+          String(rateDay1),
+          String(targetRate)
         );
-        const expectedConviction =
-          (lastConv as any) * a ** timePassed +
-          (amount * (1 - a ** timePassed)) / (1 - a) ** 2;
+        const expectedRate =
+          parseFloat(String(rateDay1)) * a ** timePassed +
+          targetRate * (1 - a ** timePassed);
         expect(
-          parseFloat(ethers.utils.formatUnits(conviction, 18))
-        ).to.be.closeTo(expectedConviction / 1e18, 1.5);
+          parseFloat(ethers.utils.formatUnits(rateDay2, 18))
+        ).to.be.closeTo(expectedRate / 1e18, 1.5);
       });
     });
 
