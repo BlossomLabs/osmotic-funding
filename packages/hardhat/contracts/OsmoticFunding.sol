@@ -25,7 +25,6 @@ contract OsmoticFunding is Ownable, FluidFunding {
   int128 constant private ONE = 1 << 64;
 
   struct Proposal {
-    uint256 requestedAmount;
     address beneficiary;
     uint256 stakedTokens;
     uint256 convictionLast;
@@ -48,7 +47,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
   mapping(address => EnumerableSet.UintSet) internal voterStakedProposals;
 
   event ConvictionSettingsChanged(uint256 decay, uint256 maxRatio, uint256 minStakeRatio);
-  event ProposalAdded(address indexed entity, uint256 indexed id, string title, bytes link, uint256 amount, address beneficiary);
+  event ProposalAdded(address indexed entity, uint256 indexed id, bytes link, address beneficiary);
   event StakeAdded(address indexed entity, uint256 indexed id, uint256  amount, uint256 tokensStaked, uint256 totalTokensStaked, uint256 conviction);
   event StakeWithdrawn(address entity, uint256 indexed id, uint256 amount, uint256 tokensStaked, uint256 totalTokensStaked, uint256 conviction);
   event ProposalExecuted(uint256 indexed id, uint256 conviction);
@@ -96,15 +95,12 @@ contract OsmoticFunding is Ownable, FluidFunding {
   }
 
   function addProposal(
-    string calldata _title,
     bytes calldata _link,
-    uint256 _requestedAmount,
     address _beneficiary
   )
     external
   {
     Proposal storage p = proposals[proposalCounter];
-    p.requestedAmount = _requestedAmount;
     p.beneficiary = _beneficiary;
     p.stakedTokens = 0;
     p.convictionLast = 0;
@@ -112,7 +108,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
     p.active = true;
     p.submitter = msg.sender;
 
-    emit ProposalAdded(msg.sender, proposalCounter, _title, _link, _requestedAmount, _beneficiary);
+    emit ProposalAdded(msg.sender, proposalCounter, _link, _beneficiary);
     proposalCounter++;
   }
 
@@ -143,7 +139,6 @@ contract OsmoticFunding is Ownable, FluidFunding {
   /**
     * @dev Get proposal details
     * @param _proposalId Proposal id
-    * @return requestedAmount Requested amount
     * @return beneficiary Beneficiary address
     * @return stakedTokens Current total stake of tokens on this proposal
     * @return convictionLast Conviction this proposal had last time calculateAndSetConviction was called
@@ -152,7 +147,6 @@ contract OsmoticFunding is Ownable, FluidFunding {
     * @return submitter Submitter of the proposal
     */
     function getProposal(uint256 _proposalId) public view returns (
-      uint256 requestedAmount,
       address beneficiary,
       uint256 stakedTokens,
       uint256 convictionLast,
@@ -163,7 +157,6 @@ contract OsmoticFunding is Ownable, FluidFunding {
     {
       Proposal storage proposal = proposals[_proposalId];
       return (
-        proposal.requestedAmount,
         proposal.beneficiary,
         proposal.stakedTokens,
         proposal.convictionLast,

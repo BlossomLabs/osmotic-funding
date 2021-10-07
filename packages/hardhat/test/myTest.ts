@@ -14,9 +14,7 @@ describe("My Dapp", async function () {
   let owner: SignerWithAddress;
   let beneficiary: SignerWithAddress;
   const proposal = {
-    title: "Super Proposal",
     link: ethers.utils.toUtf8Bytes("https://ipfs.io/ipfs/Qm"),
-    requestedAmount: String(2e18),
   };
 
   const setUpTests = deployments.createFixture(
@@ -55,13 +53,8 @@ describe("My Dapp", async function () {
   );
 
   const createProposal = async (proposal) => {
-    const { title, link, requestedAmount } = proposal;
-    await osmoticFunding.addProposal(
-      title,
-      link,
-      requestedAmount,
-      beneficiary.address
-    );
+    const { link } = proposal;
+    await osmoticFunding.addProposal(link, beneficiary.address);
   };
 
   const stakeOnProposal = async (proposalId) => {
@@ -109,10 +102,8 @@ describe("My Dapp", async function () {
 
     describe("addProposal()", function () {
       it("Should create a new proposal", async function () {
-        const { requestedAmount } = proposal;
         await createProposal(proposal);
         const [
-          _requestedAmount,
           _beneficiary,
           stakedTokens,
           convictionLast,
@@ -120,7 +111,6 @@ describe("My Dapp", async function () {
           active,
           submitter,
         ] = await osmoticFunding.getProposal(0);
-        expect(_requestedAmount).to.be.equal(requestedAmount);
         expect(_beneficiary).to.be.equal(beneficiary.address);
         expect(stakedTokens).to.be.equal(0);
         expect(convictionLast).to.be.equal(0);
@@ -137,7 +127,7 @@ describe("My Dapp", async function () {
         await createProposal(proposal);
         await stakeOnProposal(0);
 
-        const [, , stakedTokens] = await osmoticFunding.getProposal(0);
+        const [, stakedTokens] = await osmoticFunding.getProposal(0);
         const ownerStake = await osmoticFunding.getProposalVoterStake(
           0,
           owner.address
@@ -293,7 +283,7 @@ describe("My Dapp", async function () {
         await stakeOnProposal(0);
         const ownerBalance = await stakeToken.balanceOf(owner.address);
         await osmoticFunding.withdrawFromProposal(0, String(0.6e18));
-        const [, , stakedTokens] = await osmoticFunding.getProposal(0);
+        const [, stakedTokens] = await osmoticFunding.getProposal(0);
         const ownerStake = await osmoticFunding.getProposalVoterStake(
           0,
           owner.address
@@ -313,7 +303,7 @@ describe("My Dapp", async function () {
     describe("withdrawInactiveStakedTokens()", function () {
       it("Should withdraw tokens from executed proposals", async function () {
         await osmoticFunding.withdrawInactiveStakedTokens(owner.address);
-        const [, , stakedTokens] = await osmoticFunding.getProposal(0);
+        const [, stakedTokens] = await osmoticFunding.getProposal(0);
         const ownerStake = await osmoticFunding.getProposalVoterStake(
           0,
           owner.address
