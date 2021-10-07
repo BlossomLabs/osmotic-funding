@@ -39,7 +39,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
   address public requestToken;
   int128 internal decay;
   int128 internal maxRatio;
-  int128 internal weight;
+  int128 internal minStakeRatio;
   uint256 public proposalCounter;
   uint256 public totalStaked;
 
@@ -47,7 +47,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
   mapping(address => uint256) internal totalVoterStake;
   mapping(address => EnumerableSet.UintSet) internal voterStakedProposals;
 
-  event ConvictionSettingsChanged(uint256 decay, uint256 maxRatio, uint256 weight);
+  event ConvictionSettingsChanged(uint256 decay, uint256 maxRatio, uint256 minStakeRatio);
   event ProposalAdded(address indexed entity, uint256 indexed id, string title, bytes link, uint256 amount, address beneficiary);
   event StakeAdded(address indexed entity, uint256 indexed id, uint256  amount, uint256 tokensStaked, uint256 totalTokensStaked, uint256 conviction);
   event StakeWithdrawn(address entity, uint256 indexed id, uint256 amount, uint256 tokensStaked, uint256 totalTokensStaked, uint256 conviction);
@@ -69,7 +69,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
     address _requestToken,
     uint256 _decay,
     uint256 _maxRatio,
-    uint256 _weight,
+    uint256 _minStakeRatio,
     ISuperfluid _host,
     IConstantFlowAgreementV1 _cfa
     // string memory _registrationKey
@@ -78,21 +78,21 @@ contract OsmoticFunding is Ownable, FluidFunding {
 
     stakeToken = _stakeToken;
     requestToken = _requestToken;
-    setConvictionSettings(_decay, _maxRatio, _weight);
+    setConvictionSettings(_decay, _maxRatio, _minStakeRatio);
   }
 
   function setConvictionSettings(
     uint256 _decay,
     uint256 _maxRatio,
-    uint256 _weight
+    uint256 _minStakeRatio
   )
     public onlyOwner
   {
     decay = int128((_decay << 64) / 1e18);
     maxRatio = int128((_maxRatio << 64) / 1e18);
-    weight = int128((_weight << 64) / 1e18);
+    minStakeRatio = int128((_minStakeRatio << 64) / 1e18);
 
-    emit ConvictionSettingsChanged(_decay, _maxRatio, _weight);
+    emit ConvictionSettingsChanged(_decay, _maxRatio, _minStakeRatio);
   }
 
   function addProposal(
@@ -124,19 +124,6 @@ contract OsmoticFunding is Ownable, FluidFunding {
     _withdrawFromProposal(_proposalId, _amount, msg.sender);
   }
 
-  function executeProposal(uint256 _proposalId) external activeProposal(_proposalId) {
-    Proposal storage proposal = proposals[_proposalId];
-
-    require(proposal.requestedAmount > 0, "CANNOT_EXECUTE_ZERO_VALUE_PROPOSAL");
-    updateConviction(proposal);
-    require(proposal.requestedAmount <= calculateReward(proposal.convictionLast), "INSUFFICIENT_CONVICION");
-
-    proposal.active = false;
-    IERC20(requestToken).safeTransfer(proposal.beneficiary, proposal.requestedAmount);
-
-    emit ProposalExecuted(_proposalId, proposal.convictionLast);
-  }
-
   function cancelProposal(uint256 _proposalId) external activeProposal(_proposalId) {
     Proposal storage proposal = proposals[_proposalId];
     require(proposal.submitter == msg.sender || owner() == msg.sender, "SENDER_CANNOT_CANCEL");
@@ -145,11 +132,11 @@ contract OsmoticFunding is Ownable, FluidFunding {
     emit ProposalCancelled(_proposalId);
   }
 
-  function getConvictionSettings() public view returns (uint256 _decay, uint256 _maxRatio, uint256 _weight) {
+  function getConvictionSettings() public view returns (uint256 _decay, uint256 _maxRatio, uint256 _minStakeRatio) {
     return (
       uint256(decay * 1e18 >> 64) + 1,
       uint256(maxRatio * 1e18 >> 64) + 1,
-      uint256(weight * 1e18 >> 64) + 1
+      uint256(minStakeRatio * 1e18 >> 64) + 1
     );
   }
 
@@ -218,14 +205,16 @@ contract OsmoticFunding is Ownable, FluidFunding {
     return at.mulu(_lastConv).add(ONE.sub(at).div(oneSubA.mul(oneSubA)).mulu(_oldAmount));
   }
 
-  function calculateReward(uint256 _conviction) public view returns (uint256 _amount) {
-    if (_conviction == 0) {
-      _amount = 0;
+  /**
+   * @dev targetRate = (1 - sqrt(minStake / min(staked, minStake))) * maxRatio * funds
+   */
+  function calculateTargetRate(uint256 _stake) public view returns (uint256 _targetRate) {
+    if (_stake == 0) {
+      _targetRate = 0;
     } else {
       uint256 funds = IERC20(requestToken).balanceOf(address(this));
-      // funds * (beta - sqrt(weight * totalStaked / conviction)
-      int128 p = weight.mulu(totalStaked).divu(_conviction).sqrt();
-      _amount = maxRatio > p ? maxRatio.sub(p).mulu(funds) : 0;
+      uint256 minStake = minStakeRatio.mulu(totalStaked);
+      _targetRate = (ONE.sub(minStake.divu(_stake > minStake ? _stake : minStake).sqrt())).mulu(maxRatio.mulu(funds));
     }
   }
 

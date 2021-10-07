@@ -92,18 +92,18 @@ describe("My Dapp", async function () {
       it("Should be able to set new settings", async function () {
         const newDecay = String(0.99999e18);
         const newMaxRatio = String(0.1e18);
-        const newWeight = String(0.002e18);
+        const newMinStakeRatio = String(0.002e18);
 
         await osmoticFunding.setConvictionSettings(
           newDecay,
           newMaxRatio,
-          newWeight
+          newMinStakeRatio
         );
         expect(
           (await osmoticFunding.getConvictionSettings()).map((bn) =>
             bn.toString()
           )
-        ).to.deep.equal([newDecay, newMaxRatio, newWeight]);
+        ).to.deep.equal([newDecay, newMaxRatio, newMinStakeRatio]);
       });
     });
 
@@ -234,49 +234,56 @@ describe("My Dapp", async function () {
       });
     });
 
-    describe("calculateReward()", function () {
-      it("Should return the amount of funds available to withdraw with this amount of conviction", async function () {
+    describe("calculateTargetRatio()", function () {
+      beforeEach(async () => {
+        await createProposal(proposal);
+        await stakeOnProposal(0);
+      });
+
+      it("Should calculate properly the target rate based on the staked tokens", async function () {
         const b =
           parseFloat(
             (await osmoticFunding.getConvictionSettings())[1].toString()
           ) / 1e18;
-        const w =
+        const m =
           parseFloat(
             (await osmoticFunding.getConvictionSettings())[2].toString()
           ) / 1e18;
-        const staked = (await osmoticFunding.totalStaked()).toNumber() / 1e18;
-        const conviction = 1e18;
+        const totalStaked =
+          parseFloat((await osmoticFunding.totalStaked()).toString()) / 1e18;
+        const staked = 1e18;
         const funds = 100;
-        const reward = await osmoticFunding.calculateReward(String(conviction));
-        const expectedReward =
-          funds * (b - Math.sqrt((w * staked) / (conviction / 1e18)));
-        expect(reward.toNumber() / 1e18).to.be.closeTo(expectedReward, 1e-4);
+        const targetRate = await osmoticFunding.calculateTargetRate(
+          String(staked)
+        );
+        const expectedTargetRate =
+          funds * b * (1 - Math.sqrt((m * totalStaked) / (staked / 1e18)));
+        expect(parseFloat(targetRate.toString()) / 1e18).to.be.closeTo(
+          expectedTargetRate,
+          1e-4
+        );
       });
 
-      it("Should return zero if the amount of conviction is zero", async function () {
-        const reward = await osmoticFunding.calculateReward(0);
-        expect(reward).to.be.equal(0);
+      it("Should return zero if there are no staked tokens", async function () {
+        const targetRate = await osmoticFunding.calculateTargetRate(0);
+        expect(targetRate).to.be.equal(0);
       });
 
-      it.skip("Should return zero if the amount of conviction is below the threshold", async function () {
-        const b =
-          parseFloat(
-            (await osmoticFunding.getConvictionSettings())[1].toString()
-          ) / 1e18;
-        const w =
+      it("Should return zero if the amount of staked tokens is below the min stake", async function () {
+        const m =
           parseFloat(
             (await osmoticFunding.getConvictionSettings())[2].toString()
           ) / 1e18;
-        const staked = (await osmoticFunding.totalStaked()).toNumber() / 1e18;
-        const minThreshold = (w * staked) / b ** 2;
-        const reward = await osmoticFunding.calculateReward(
-          String(minThreshold - 100)
+        const totalStaked =
+          parseFloat((await osmoticFunding.totalStaked()).toString()) / 1e18;
+        const targetRate = await osmoticFunding.calculateTargetRate(
+          String(Math.floor(m * totalStaked * 1e18 - 100))
         );
-        expect(reward).to.be.equal(0);
-        const reward2 = await osmoticFunding.calculateReward(
-          String(minThreshold)
+        expect(targetRate).to.be.equal(0);
+        const targetRate2 = await osmoticFunding.calculateTargetRate(
+          String(m * totalStaked * 1e18)
         );
-        expect(reward2).to.not.be.equal(0);
+        expect(targetRate2).to.not.be.equal(0);
       });
     });
 
@@ -300,15 +307,6 @@ describe("My Dapp", async function () {
         expect(stakedTokens).to.be.equal(String(0.4e18));
         expect(ownerStake).to.be.equal(String(0.4e18));
         expect(totalOwnerStake).to.be.equal(String(0.4e18));
-      });
-    });
-
-    describe.skip("executeProposal()", function () {
-      it("Should execute a proposal", async function () {
-        await osmoticFunding.executeProposal(0);
-        expect(await requestToken.balanceOf(beneficiary.address)).to.be.equal(
-          String(2e18)
-        );
       });
     });
 
