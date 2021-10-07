@@ -81,21 +81,19 @@ describe("My Dapp", async function () {
       expect(await requestToken.balanceOf(tester)).to.be.equal(mintedTokens);
     });
 
-    describe("setConvictionSettings()", function () {
+    describe("setFundingSettings()", function () {
       it("Should be able to set new settings", async function () {
         const newDecay = String(0.99999e18);
         const newMaxRatio = String(0.1e18);
         const newMinStakeRatio = String(0.002e18);
 
-        await osmoticFunding.setConvictionSettings(
+        await osmoticFunding.setFundingSettings(
           newDecay,
           newMaxRatio,
           newMinStakeRatio
         );
         expect(
-          (await osmoticFunding.getConvictionSettings()).map((bn) =>
-            bn.toString()
-          )
+          (await osmoticFunding.getFundingSettings()).map((bn) => bn.toString())
         ).to.deep.equal([newDecay, newMaxRatio, newMinStakeRatio]);
       });
     });
@@ -149,7 +147,7 @@ describe("My Dapp", async function () {
       it("Should calculate conviction growth correctly after 1 day", async function () {
         const a =
           parseFloat(
-            (await osmoticFunding.getConvictionSettings())[0].toString()
+            (await osmoticFunding.getFundingSettings())[0].toString()
           ) / 1e18;
         const timePassed = 24 * 60 * 60; // 1 day
         const lastConv = 0; // conviction starts from scratch
@@ -170,7 +168,7 @@ describe("My Dapp", async function () {
       it("Should calculate conviction growth correctly after 2 days from previous conviction", async function () {
         const a =
           parseFloat(
-            (await osmoticFunding.getConvictionSettings())[0].toString()
+            (await osmoticFunding.getFundingSettings())[0].toString()
           ) / 1e18;
         const timePassed = 24 * 60 * 60; // 1 day
         const lastConv = await osmoticFunding.calculateConviction(
@@ -201,7 +199,7 @@ describe("My Dapp", async function () {
       it("Should calculate conviction decay correctly after 1 day", async function () {
         const a =
           parseFloat(
-            (await osmoticFunding.getConvictionSettings())[0].toString()
+            (await osmoticFunding.getFundingSettings())[0].toString()
           ) / 1e18;
         const timePassed = 24 * 60 * 60; // 1 day
         const lastConv = await osmoticFunding.calculateConviction(
@@ -233,11 +231,11 @@ describe("My Dapp", async function () {
       it("Should calculate properly the target rate based on the staked tokens", async function () {
         const b =
           parseFloat(
-            (await osmoticFunding.getConvictionSettings())[1].toString()
+            (await osmoticFunding.getFundingSettings())[1].toString()
           ) / 1e18;
         const m =
           parseFloat(
-            (await osmoticFunding.getConvictionSettings())[2].toString()
+            (await osmoticFunding.getFundingSettings())[2].toString()
           ) / 1e18;
         const totalStaked =
           parseFloat((await osmoticFunding.totalStaked()).toString()) / 1e18;
@@ -262,7 +260,7 @@ describe("My Dapp", async function () {
       it("Should return zero if the amount of staked tokens is below the min stake", async function () {
         const m =
           parseFloat(
-            (await osmoticFunding.getConvictionSettings())[2].toString()
+            (await osmoticFunding.getFundingSettings())[2].toString()
           ) / 1e18;
         const totalStaked =
           parseFloat((await osmoticFunding.totalStaked()).toString()) / 1e18;

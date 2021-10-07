@@ -46,7 +46,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
   mapping(address => uint256) internal totalVoterStake;
   mapping(address => EnumerableSet.UintSet) internal voterStakedProposals;
 
-  event ConvictionSettingsChanged(uint256 decay, uint256 maxRatio, uint256 minStakeRatio);
+  event FundingSettingsChanged(uint256 decay, uint256 maxRatio, uint256 minStakeRatio);
   event ProposalAdded(address indexed entity, uint256 indexed id, bytes link, address beneficiary);
   event StakeAdded(address indexed entity, uint256 indexed id, uint256  amount, uint256 tokensStaked, uint256 totalTokensStaked, uint256 conviction);
   event StakeWithdrawn(address entity, uint256 indexed id, uint256 amount, uint256 tokensStaked, uint256 totalTokensStaked, uint256 conviction);
@@ -77,10 +77,10 @@ contract OsmoticFunding is Ownable, FluidFunding {
 
     stakeToken = _stakeToken;
     requestToken = _requestToken;
-    setConvictionSettings(_decay, _maxRatio, _minStakeRatio);
+    setFundingSettings(_decay, _maxRatio, _minStakeRatio);
   }
 
-  function setConvictionSettings(
+  function setFundingSettings(
     uint256 _decay,
     uint256 _maxRatio,
     uint256 _minStakeRatio
@@ -91,7 +91,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
     maxRatio = int128((_maxRatio << 64) / 1e18);
     minStakeRatio = int128((_minStakeRatio << 64) / 1e18);
 
-    emit ConvictionSettingsChanged(_decay, _maxRatio, _minStakeRatio);
+    emit FundingSettingsChanged(_decay, _maxRatio, _minStakeRatio);
   }
 
   function addProposal(
@@ -128,7 +128,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
     emit ProposalCancelled(_proposalId);
   }
 
-  function getConvictionSettings() public view returns (uint256 _decay, uint256 _maxRatio, uint256 _minStakeRatio) {
+  function getFundingSettings() public view returns (uint256 _decay, uint256 _maxRatio, uint256 _minStakeRatio) {
     return (
       uint256(decay * 1e18 >> 64) + 1,
       uint256(maxRatio * 1e18 >> 64) + 1,
