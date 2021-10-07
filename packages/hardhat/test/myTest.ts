@@ -54,6 +54,21 @@ describe("My Dapp", async function () {
     }
   );
 
+  const createProposal = async (proposal) => {
+    const { title, link, requestedAmount } = proposal;
+    await osmoticFunding.addProposal(
+      title,
+      link,
+      requestedAmount,
+      beneficiary.address
+    );
+  };
+
+  const stakeOnProposal = async (proposalId) => {
+    await stakeToken.approve(osmoticFunding.address, String(1e18));
+    await osmoticFunding.stakeToProposal(proposalId, String(1e18));
+  };
+
   before(async () => {
     [owner, beneficiary] = await ethers.getSigners();
   });
@@ -70,9 +85,6 @@ describe("My Dapp", async function () {
       await requestToken.selfMint(tester, mintedTokens, "0x");
       await requestToken.selfMint(osmoticFunding.address, mintedTokens, "0x");
 
-      console.log(
-        (await requestToken.balanceOf(osmoticFunding.address)).toString()
-      );
       expect(await requestToken.balanceOf(tester)).to.be.equal(mintedTokens);
     });
 
@@ -97,13 +109,8 @@ describe("My Dapp", async function () {
 
     describe("addProposal()", function () {
       it("Should create a new proposal", async function () {
-        const { title, link, requestedAmount } = proposal;
-        await osmoticFunding.addProposal(
-          title,
-          link,
-          requestedAmount,
-          beneficiary.address
-        );
+        const { requestedAmount } = proposal;
+        await createProposal(proposal);
         const [
           _requestedAmount,
           _beneficiary,
@@ -125,17 +132,10 @@ describe("My Dapp", async function () {
 
     describe("stakeToProposal()", function () {
       it("Should stake on proposal", async function () {
-        const { title, link, requestedAmount } = proposal;
         const ownerBalance = await stakeToken.balanceOf(owner.address);
 
-        await osmoticFunding.addProposal(
-          title,
-          link,
-          requestedAmount,
-          beneficiary.address
-        );
-        await stakeToken.approve(osmoticFunding.address, String(1e18));
-        await osmoticFunding.stakeToProposal(0, String(1e18));
+        await createProposal(proposal);
+        await stakeOnProposal(0);
 
         const [, , stakedTokens] = await osmoticFunding.getProposal(0);
         const ownerStake = await osmoticFunding.getProposalVoterStake(
@@ -244,13 +244,13 @@ describe("My Dapp", async function () {
           parseFloat(
             (await osmoticFunding.getConvictionSettings())[2].toString()
           ) / 1e18;
-        const staked = ((await osmoticFunding.totalStaked()) as any) / 1e18;
+        const staked = (await osmoticFunding.totalStaked()).toNumber() / 1e18;
         const conviction = 1e18;
         const funds = 100;
         const reward = await osmoticFunding.calculateReward(String(conviction));
         const expectedReward =
           funds * (b - Math.sqrt((w * staked) / (conviction / 1e18)));
-        expect((reward as any) / 1e18).to.be.closeTo(expectedReward, 1e-4);
+        expect(reward.toNumber() / 1e18).to.be.closeTo(expectedReward, 1e-4);
       });
 
       it("Should return zero if the amount of conviction is zero", async function () {
@@ -258,7 +258,7 @@ describe("My Dapp", async function () {
         expect(reward).to.be.equal(0);
       });
 
-      it("Should return zero if the amount of conviction is below the threshold", async function () {
+      it.skip("Should return zero if the amount of conviction is below the threshold", async function () {
         const b =
           parseFloat(
             (await osmoticFunding.getConvictionSettings())[1].toString()
@@ -267,8 +267,8 @@ describe("My Dapp", async function () {
           parseFloat(
             (await osmoticFunding.getConvictionSettings())[2].toString()
           ) / 1e18;
-        const staked = await osmoticFunding.totalStaked();
-        const minThreshold = (w * (staked as any)) / b ** 2;
+        const staked = (await osmoticFunding.totalStaked()).toNumber() / 1e18;
+        const minThreshold = (w * staked) / b ** 2;
         const reward = await osmoticFunding.calculateReward(
           String(minThreshold - 100)
         );
@@ -280,13 +280,10 @@ describe("My Dapp", async function () {
       });
     });
 
-    describe.skip("updateConviction()", function () {
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
-      it("Should update last conviction and last time", async function () {});
-    });
-
     describe("withdrawFromProposal()", function () {
       it("Should widthdraw from a proposal", async function () {
+        await createProposal(proposal);
+        await stakeOnProposal(0);
         const ownerBalance = await stakeToken.balanceOf(owner.address);
         await osmoticFunding.withdrawFromProposal(0, String(0.6e18));
         const [, , stakedTokens] = await osmoticFunding.getProposal(0);
@@ -306,7 +303,7 @@ describe("My Dapp", async function () {
       });
     });
 
-    describe("executeProposal()", function () {
+    describe.skip("executeProposal()", function () {
       it("Should execute a proposal", async function () {
         await osmoticFunding.executeProposal(0);
         expect(await requestToken.balanceOf(beneficiary.address)).to.be.equal(
