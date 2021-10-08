@@ -32,6 +32,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
     bool active;
     mapping(address => uint256) voterStake;
     address submitter;
+    uint256 balance;
   }
 
   IERC20 public stakeToken;
@@ -86,9 +87,9 @@ contract OsmoticFunding is Ownable, FluidFunding {
   )
     public onlyOwner
   {
-    decay = int128((_decay << 64) / 1e18);
-    maxRatio = int128((_maxRatio << 64) / 1e18);
-    minStakeRatio = int128((_minStakeRatio << 64) / 1e18);
+    decay = _decay.divu(1e18).add(1);
+    maxRatio = _maxRatio.divu(1e18).add(1);
+    minStakeRatio = _minStakeRatio.divu(1e18).add(1);
 
     emit FundingSettingsChanged(_decay, _maxRatio, _minStakeRatio);
   }
@@ -106,6 +107,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
     p.lastTime = 0;
     p.active = true;
     p.submitter = msg.sender;
+    p.balance = 0;
 
     emit ProposalAdded(msg.sender, proposalCounter, _link, _beneficiary);
     proposalCounter++;
@@ -129,9 +131,9 @@ contract OsmoticFunding is Ownable, FluidFunding {
 
   function getFundingSettings() public view returns (uint256 _decay, uint256 _maxRatio, uint256 _minStakeRatio) {
     return (
-      uint256(decay * 1e18 >> 64) + 1,
-      uint256(maxRatio * 1e18 >> 64) + 1,
-      uint256(minStakeRatio * 1e18 >> 64) + 1
+      decay.mulu(1e18),
+      maxRatio.mulu(1e18),
+      minStakeRatio.mulu(1e18)
     );
   }
 
@@ -199,6 +201,19 @@ contract OsmoticFunding is Ownable, FluidFunding {
     return at.mulu(_lastRate).add(ONE.sub(at).mulu(_targetRate));
   }
 
+  function calculateAmount(
+    uint256 _timePassed,
+    uint256 _lastRate,
+    uint256 _targetRate
+  ) public view returns(uint256 _amount) {
+    uint256 timePassed = _timePassed; // avoid stack too deep
+    uint256 lastRate = _lastRate; // avoid stack too deep
+    int128 oneSubAt = ONE.sub(decay.pow(timePassed));
+    int128 lna = ONE.div(decay).ln();
+    // amount = (targetRate * (1 - alpha ^ time + time * ln(1/alpha)) + lastRate * (1 - alpha ^ time)) / ln(1/alpha)
+    _amount = ONE.div(lna).mulu(oneSubAt.add(timePassed.fromUInt().mul(lna)).mulu(_targetRate).add(oneSubAt.mulu(lastRate)));
+  }
+
   function rate(uint256 _proposalId) public view returns (uint256 _rate) {
     Proposal storage proposal = proposals[_proposalId];
     assert(proposal.lastTime <= block.timestamp);
@@ -207,6 +222,19 @@ contract OsmoticFunding is Ownable, FluidFunding {
       proposal.lastRate,
       calculateTargetRate(proposal.stakedTokens)
     );
+  }
+
+  function claimable(uint256 _proposalId) public view returns (uint256 _amount) {
+    Proposal storage proposal = proposals[_proposalId];
+    _amount = calculateAmount(block.timestamp - proposal.lastTime, proposal.lastRate, calculateTargetRate(proposal.stakedTokens)).add(proposal.balance);
+  }
+
+  function claim(uint256 _proposalId) external activeProposal(_proposalId) {
+    _saveCheckpoint(_proposalId);
+    Proposal storage proposal = proposals[_proposalId];
+    uint256 balance = proposal.balance;
+    proposal.balance = 0;
+    IERC20(requestToken).safeTransfer(proposal.beneficiary, balance);
   }
 
   /**
@@ -232,6 +260,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
       return; // Rate already stored
     }
     // calculateRate and store it
+    proposal.balance = claimable(_proposalId);
     proposal.lastRate = rate(_proposalId);
     proposal.lastTime = block.timestamp;
   }

@@ -14,9 +14,9 @@ import {
 const FUNDS_AMOUNT = 500000;
 
 // Conviction voting parameters
-const DECAY = 0.9999999e7;
-const MAX_RATIO = 0.2e7;
-const WEIGHT = 0.0025e7;
+const DECAY = String(0.9999999e18);
+const MAX_RATIO = String(Math.floor(0.02e18 / (30 * 24 * 60 * 60)));
+const WEIGHT = String(0.025e18);
 
 const deployWithRegisteringKey = async (
   hostAddress: string,
