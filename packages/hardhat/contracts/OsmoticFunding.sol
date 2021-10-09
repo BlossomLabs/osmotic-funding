@@ -9,11 +9,9 @@ import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import { ABDKMath64x64 } from "abdk-libraries-solidity/ABDKMath64x64.sol";
-import { IConstantFlowAgreementV1 } from "@superfluid-finance/ethereum-contracts/contracts/interfaces/agreements/IConstantFlowAgreementV1.sol";
-import { FluidFunding } from "./FluidFunding.sol";
 import "hardhat/console.sol";
 
-contract OsmoticFunding is Ownable, FluidFunding {
+contract OsmoticFunding is Ownable {
   using ABDKMath64x64 for int128;
   using ABDKMath64x64 for uint256;
   using SafeMath for uint256;
@@ -48,7 +46,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
   mapping(address => EnumerableSet.UintSet) internal voterStakedProposals;
 
   event FundingSettingsChanged(uint256 decay, uint256 maxRatio, uint256 minStakeRatio);
-  event ProposalAdded(address indexed entity, uint256 indexed id, bytes link, address beneficiary);
+  event ProposalAdded(address indexed entity, uint256 indexed id, string link, address beneficiary);
   event StakeAdded(address indexed entity, uint256 indexed id, uint256  amount, uint256 tokensStaked, uint256 totalTokensStaked, uint256 lastRate);
   event StakeWithdrawn(address entity, uint256 indexed id, uint256 amount, uint256 tokensStaked, uint256 totalTokensStaked, uint256 lastRate);
   event ProposalCancelled(uint256 indexed id);
@@ -68,11 +66,8 @@ contract OsmoticFunding is Ownable, FluidFunding {
     address _requestToken,
     uint256 _decay,
     uint256 _maxRatio,
-    uint256 _minStakeRatio,
-    ISuperfluid _host,
-    IConstantFlowAgreementV1 _cfa
-    // string memory _registrationKey
-  ) FluidFunding(_host, _cfa, ISuperToken(_requestToken)) {
+    uint256 _minStakeRatio
+  ) {
     require(address(_stakeToken) != _requestToken, "STAKE_AND_REQUEST_TOKENS_MUST_BE_DIFFERENT");
 
     stakeToken = _stakeToken;
@@ -95,7 +90,7 @@ contract OsmoticFunding is Ownable, FluidFunding {
   }
 
   function addProposal(
-    bytes calldata _link,
+    string calldata _link,
     address _beneficiary
   )
     external
