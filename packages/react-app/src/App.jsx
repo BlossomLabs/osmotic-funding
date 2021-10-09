@@ -1,15 +1,8 @@
+import Portis from "@portis/web3";
 import WalletConnectProvider from "@walletconnect/web3-provider";
-//import Torus from "@toruslabs/torus-embed"
-import WalletLink from "walletlink";
 import { Alert, Button, Col, Menu, Row } from "antd";
 import "antd/dist/antd.css";
-import React, { useCallback, useEffect, useState } from "react";
-import { BrowserRouter, Link, Route, Switch } from "react-router-dom";
-import Web3Modal from "web3modal";
-import "./App.css";
-import { Account, Contract, Faucet, GasGauge, Header, Ramp, ThemeSwitch } from "./components";
-import { INFURA_ID, NETWORK, NETWORKS } from "./constants";
-import { Transactor } from "./helpers";
+import Authereum from "authereum";
 import {
   useBalance,
   useContractLoader,
@@ -18,22 +11,30 @@ import {
   useOnBlock,
   useUserProviderAndSigner,
 } from "eth-hooks";
-import { useEventListener } from "eth-hooks/events/useEventListener";
 import { useExchangeEthPrice } from "eth-hooks/dapps/dex";
+import { useEventListener } from "eth-hooks/events/useEventListener";
+import Fortmatic from "fortmatic";
+import React, { useCallback, useEffect, useState } from "react";
+import { BrowserRouter, Link, Route, Switch } from "react-router-dom";
+//import Torus from "@toruslabs/torus-embed"
+import WalletLink from "walletlink";
+import Web3Modal from "web3modal";
+import "./App.css";
+import { Account, Contract, Faucet, GasGauge, Header, Ramp, ThemeSwitch } from "./components";
+import { INFURA_ID, NETWORK, NETWORKS } from "./constants";
+import externalContracts from "./contracts/external_contracts";
+// contracts
+import deployedContracts from "./contracts/hardhat_contracts.json";
+import { Transactor } from "./helpers";
 // import Hints from "./Hints";
 import { ExampleUI, Hints, Subgraph } from "./views";
-
-import { useContractConfig } from "./hooks";
-import Portis from "@portis/web3";
-import Fortmatic from "fortmatic";
-import Authereum from "authereum";
 
 const { ethers } = require("ethers");
 /*
     Welcome to 🏗 scaffold-eth !
 
     Code:
-    https://github.com/austintgriffith/scaffold-eth
+    https://github.com/scaffold-eth/scaffold-eth
 
     Support:
     https://t.me/joinchat/KByvmRe5wkR-8F_zz6AjpA
@@ -74,7 +75,6 @@ const mainnetInfura = navigator.onLine
   ? new ethers.providers.StaticJsonRpcProvider("https://mainnet.infura.io/v3/" + INFURA_ID)
   : null;
 // ( ⚠️ Getting "failed to meet quorum" errors? Check your INFURA_ID
-
 // 🏠 Your local provider is usually pointed at your local blockchain
 const localProviderUrl = targetNetwork.rpcUrl;
 // as you deploy to other networks you can set REACT_APP_PROVIDER=https://dai.poa.network in packages/react-app/.env
@@ -221,7 +221,9 @@ function App(props) {
   // Just plug in different 🛰 providers to get your balance on different chains:
   const yourMainnetBalance = useBalance(mainnetProvider, address);
 
-  const contractConfig = useContractConfig();
+  // const contractConfig = useContractConfig();
+
+  const contractConfig = { deployedContracts: deployedContracts || {}, externalContracts: externalContracts || {} };
 
   // Load in your local 📝 contract and read a value from it:
   const readContracts = useContractLoader(localProvider, contractConfig);
@@ -454,7 +456,7 @@ function App(props) {
               }}
               to="/"
             >
-              OsmoticFunding
+              YourContract
             </Link>
           </Menu.Item>
           <Menu.Item key="/hints">
