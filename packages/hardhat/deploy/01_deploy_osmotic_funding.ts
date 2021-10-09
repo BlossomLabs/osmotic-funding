@@ -1,14 +1,8 @@
 import { DeployFunction } from "hardhat-deploy/types";
-import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { getConfigByNetworkId } from "../helpers/configuration";
 import { impersonateAddress } from "../helpers/rpc";
-import { createAppKey } from "../helpers/superfluid";
 import { toDecimals } from "../helpers/web3";
-import {
-  ISuperfluid,
-  ISuperToken,
-  SuperfluidOwnableGovernance,
-} from "../typechain";
+import { ISuperToken } from "../typechain";
 
 // Initial funds stored in the osmotic funding app
 const FUNDS_AMOUNT = 500000;
@@ -18,41 +12,12 @@ const DECAY = 0.9999999e7;
 const MAX_RATIO = 0.2e7;
 const WEIGHT = 0.0025e7;
 
-const deployWithRegisteringKey = async (
-  hostAddress: string,
-  hre: HardhatRuntimeEnvironment
-) => {
-  const { ethers, getNamedAccounts } = hre;
-  const { deployer } = await getNamedAccounts();
-
-  const host = (await ethers.getContractAt(
-    "ISuperfluid",
-    hostAddress
-  )) as ISuperfluid;
-  const governanceAddress = await host.getGovernance();
-  let governance = (await ethers.getContractAt(
-    "SuperfluidOwnableGovernance",
-    governanceAddress
-  )) as SuperfluidOwnableGovernance;
-  const governanceOwnerAddress = await governance.owner();
-  const ownerSigner = await impersonateAddress(governanceOwnerAddress);
-
-  governance = governance.connect(ownerSigner);
-
-  /**
-   * Transfer ownership to deployer account to create a valid
-   * registration key
-   */
-  await (await governance.transferOwnership(deployer)).wait();
-
-  const registrationKey = "osmosis-funding";
-  const appKey = createAppKey(deployer, registrationKey);
-
-  await (await governance.whiteListNewApp(hostAddress, appKey)).wait();
-};
-
-const deployFunc: DeployFunction = async (hre) => {
-  const { deployments, getNamedAccounts, ethers, network } = hre;
+const deployFunc: DeployFunction = async ({
+  deployments,
+  getNamedAccounts,
+  ethers,
+  network,
+}) => {
   const { deploy } = deployments;
   const { deployer } = await getNamedAccounts();
   const {
