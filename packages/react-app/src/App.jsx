@@ -1,8 +1,15 @@
-import Portis from "@portis/web3";
 import WalletConnectProvider from "@walletconnect/web3-provider";
+//import Torus from "@toruslabs/torus-embed"
+import WalletLink from "walletlink";
 import { Alert, Button, Col, Menu, Row } from "antd";
 import "antd/dist/antd.css";
-import Authereum from "authereum";
+import React, { useCallback, useEffect, useState } from "react";
+import { BrowserRouter, Link, Route, Switch } from "react-router-dom";
+import Web3Modal from "web3modal";
+import "./App.css";
+import { Account, Contract, Faucet, GasGauge, Header, Ramp, ThemeSwitch } from "./components";
+import { INFURA_ID, NETWORK, NETWORKS } from "./constants";
+import { Transactor } from "./helpers";
 import {
   useBalance,
   useContractLoader,
@@ -11,23 +18,19 @@ import {
   useOnBlock,
   useUserProviderAndSigner,
 } from "eth-hooks";
-import { useExchangeEthPrice } from "eth-hooks/dapps/dex";
 import { useEventListener } from "eth-hooks/events/useEventListener";
-import Fortmatic from "fortmatic";
-import React, { useCallback, useEffect, useState } from "react";
-import { BrowserRouter, Link, Route, Switch } from "react-router-dom";
-//import Torus from "@toruslabs/torus-embed"
-import WalletLink from "walletlink";
-import Web3Modal from "web3modal";
-import "./App.css";
-import { Account, Contract, Faucet, GasGauge, Header, Ramp, ThemeSwitch } from "./components";
-import { INFURA_ID, NETWORK, NETWORKS } from "./constants";
-import externalContracts from "./contracts/external_contracts";
-// contracts
-import deployedContracts from "./contracts/hardhat_contracts.json";
-import { Transactor } from "./helpers";
+import { useExchangeEthPrice } from "eth-hooks/dapps/dex";
 // import Hints from "./Hints";
 import { ExampleUI, Hints, Subgraph } from "./views";
+
+// contracts
+import deployedContracts from "./contracts/hardhat_contracts.json";
+import externalContracts from "./contracts/external_contracts";
+
+import { useContractConfig } from "./hooks";
+import Portis from "@portis/web3";
+import Fortmatic from "fortmatic";
+import Authereum from "authereum";
 
 const { ethers } = require("ethers");
 /*
@@ -456,7 +459,7 @@ function App(props) {
               }}
               to="/"
             >
-              YourContract
+              OsmoticFunding
             </Link>
           </Menu.Item>
           <Menu.Item key="/hints">
