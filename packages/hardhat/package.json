@@ -43,7 +43,7 @@
   },
   "scripts": {
     "chain": "hardhat node --network hardhat --no-deploy",
-    "fork": "hardhat node --no-deploy --network hardhat --fork https://speedy-nodes-nyc.moralis.io/cff107316eaa320c66ca9c51/polygon/mumbai/archive",
+    "fork": "hardhat node --no-deploy --network hardhat --hostname 0.0.0.0 --port 8545 --fork https://speedy-nodes-nyc.moralis.io/cff107316eaa320c66ca9c51/polygon/mumbai/archive",
     "test": "hardhat test --network localhost",
     "compile": "hardhat compile",
     "deploy": "hardhat deploy",
