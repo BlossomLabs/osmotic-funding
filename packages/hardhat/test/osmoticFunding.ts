@@ -19,7 +19,7 @@ describe("Osmotic Funding", async function () {
 
   const setUpTests = deployments.createFixture(
     async ({ deployments, ethers }) => {
-      await deployments.fixture();
+      await deployments.fixture("OsmoticFunding");
 
       const {
         ERC20Mock: ERC20MockDeployment,
