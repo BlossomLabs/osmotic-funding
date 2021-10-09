@@ -9,7 +9,7 @@ import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import { ABDKMath64x64 } from "abdk-libraries-solidity/ABDKMath64x64.sol";
-import { IConstantFlowAgreementV1 } from "@superfluid-finance/ethereum-contracts/contracts/interfaces/agreements/IConstantFlowAgreementV1.sol";
+import { IAdaptiveFlowAgreementV1 } from "./agreement/IAdaptiveFlowAgreementV1.sol";
 import { FluidFunding } from "./FluidFunding.sol";
 import "hardhat/console.sol";
 
@@ -69,9 +69,9 @@ contract OsmoticFunding is Ownable, FluidFunding {
     uint256 _maxRatio,
     uint256 _minStakeRatio,
     ISuperfluid _host,
-    IConstantFlowAgreementV1 _cfa
+    IAdaptiveFlowAgreementV1 _afa
     // string memory _registrationKey
-  ) FluidFunding(_host, _cfa, ISuperToken(_requestToken)) {
+  ) FluidFunding(_host, _afa, ISuperToken(_requestToken)) {
     require(address(_stakeToken) != _requestToken, "STAKE_AND_REQUEST_TOKENS_MUST_BE_DIFFERENT");
 
     stakeToken = _stakeToken;
