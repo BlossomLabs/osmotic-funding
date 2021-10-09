@@ -11,15 +11,15 @@ dataSources:
       startBlock: 1
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.4
+      apiVersion: 0.0.5
       language: wasm/assemblyscript
       entities:
-        - Purpose
-        - Sender
+        - Proposal
+        - Beneficiary
       abis:
         - name: OsmoticFunding
           file: ./abis/localhost_OsmoticFunding.json
       eventHandlers:
-        - event: SetPurpose(address,string)
-          handler: handleSetPurpose
+        - event: ProposalAdded(indexed address,indexed uint256,string,address)
+          handler: handleProposalAdded
       file: ./src/mapping.ts
