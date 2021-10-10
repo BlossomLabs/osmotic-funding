@@ -1,5 +1,5 @@
-import fs from "fs";
 import chalk from "chalk";
+import fs from "fs";
 
 const graphDir = "../subgraph";
 const deploymentsDir = "./deployments";
