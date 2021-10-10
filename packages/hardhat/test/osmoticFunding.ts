@@ -7,7 +7,7 @@ import { ERC20Mock, ISuperToken, OsmoticFunding } from "../typechain";
 
 use(solidity);
 
-describe("Osmotic Funding", async function () {
+xdescribe("Osmotic Funding", async function () {
   let osmoticFunding: OsmoticFunding;
   let stakeToken: ERC20Mock;
   let requestToken: ISuperToken;
