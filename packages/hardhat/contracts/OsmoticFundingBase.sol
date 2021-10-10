@@ -245,7 +245,7 @@ contract OsmoticFundingBase is Ownable {
     } else {
       uint256 funds = requestToken.balanceOf(address(this));
       uint256 _minStake = minStake();
-      _targetRate = (ONE.sub(minStake.divu(_stake > _minStake ? _stake : _minStake).sqrt())).mulu(maxRatio.mulu(funds));
+      _targetRate = (ONE.sub(_minStake.divu(_stake > _minStake ? _stake : _minStake).sqrt())).mulu(maxRatio.mulu(funds));
     }
   }
 
