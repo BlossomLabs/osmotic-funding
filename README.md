@@ -42,7 +42,7 @@ yarn deploy
 
 We have implemented an advanced feature that integrates with [Superfluid](https://www.superfluid.finance) to create an adaptive payment flow.
 
-> to play with it checkout the `superfluid-osmotic-funding` branch.
+> checkout the `superfluid-osmotic-funding` branch to play with it:
 
 ```bash
 git checkout superfluid-osmotic-funding
