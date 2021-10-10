@@ -1,14 +1,13 @@
-import { DeployFunction } from "hardhat-deploy/types";
 // deploy/00_deploy_osmotic_funding.js
+import { DeployFunction } from "hardhat-deploy/types";
 
-// const { ethers } = require("hardhat");
 const DECAY = String(0.9999999e18);
 const MAX_RATIO = String(Math.floor(0.02e18 / (30 * 24 * 60 * 60)));
 const WEIGHT = String(0.025e18);
 
 const deployFunc: DeployFunction = async (hre) => {
-  const { deployments, getNamedAccounts, ethers, network } = hre;
-  const { deploy } = deployments;
+  const { deployments, getNamedAccounts } = hre;
+  const { deploy, execute } = deployments;
   const { deployer } = await getNamedAccounts();
   // Deploy stake token
   const { address: stakeTokenAddress } = await deploy("StakeToken", {
@@ -24,47 +23,88 @@ const deployFunc: DeployFunction = async (hre) => {
     log: true,
     contract: "ERC20Mock",
   });
-  await deploy("OsmoticFunding", {
+  const { address: osmoticFundingAddress } = await deploy("OsmoticFunding", {
     // Learn more about args here: https://www.npmjs.com/package/hardhat-deploy#deploymentsdeploy
     from: deployer,
     args: [stakeTokenAddress, requestTokenAddress, DECAY, MAX_RATIO, WEIGHT],
     log: true,
   });
 
-  // Getting a previously deployed contract
-  const osmoticFunding = await ethers.getContract("OsmoticFunding", deployer);
-  const stakeToken = await ethers.getContract("StakeToken", deployer);
-  const requestToken = await ethers.getContract("RequestToken", deployer);
-  await requestToken.transfer(osmoticFunding.address, String(100e18));
-  await osmoticFunding.addProposal(
+  // Transfer request tokens
+  await execute(
+    "RequestToken",
+    { from: deployer, log: true },
+    "transfer",
+    osmoticFundingAddress,
+    String(100e18)
+  );
+
+  // Add test proposals
+  await execute(
+    "OsmoticFunding",
+    { from: deployer, log: true },
+    "addProposal",
     "https://gitcoin.co/grants/899",
     "0x5b0f8d8f47e3fdf7ee1c337abca19dbba98524e6"
   );
-  await osmoticFunding.addProposal(
+  await execute(
+    "OsmoticFunding",
+    { from: deployer, log: true },
+    "addProposal",
     "https://gitcoin.co/grants/2388",
     "0x0035cC37599241D007D0AbA1Fb931C5FA757f7A1"
   );
-  await osmoticFunding.addProposal(
+  await execute(
+    "OsmoticFunding",
+    { from: deployer, log: true },
+    "addProposal",
     "https://gitcoin.co/grants/795",
     "0x90dfc35e747ffcf9631ce75348f99632528e1704"
   );
-  await osmoticFunding.addProposal(
+  await execute(
+    "OsmoticFunding",
+    { from: deployer, log: true },
+    "addProposal",
     "https://gitcoin.co/grants/277",
     "0xa0527bA80D811cd45d452481Caf902DFd6F5b8c2"
   );
-  await osmoticFunding.addProposal(
+  await execute(
+    "OsmoticFunding",
+    { from: deployer, log: true },
+    "addProposal",
     "https://gitcoin.co/grants/539",
     "0x8110d1D04ac316fdCACe8f24fD60C86b810AB15A"
   );
-  await osmoticFunding.addProposal(
+  await execute(
+    "OsmoticFunding",
+    { from: deployer, log: true },
+    "addProposal",
     "https://gitcoin.co/grants/1141",
     "0x422ae3412510d6c877b259dad402ddeaf1fdb28e"
   );
-  await osmoticFunding.addProposal(
+  await execute(
+    "OsmoticFunding",
+    { from: deployer, log: true },
+    "addProposal",
     "https://gitcoin.co/grants/191",
     "0x4B8810b079eb22ecF2D1f75E08E0AbbD6fD87dbF"
   );
-  await osmoticFunding.stakeOnProposal(0, String(1e18));
+
+  // Stake to proposal
+  await execute(
+    "StakeToken",
+    { from: deployer, log: true },
+    "approve",
+    osmoticFundingAddress,
+    String(100e18)
+  );
+  await execute(
+    "OsmoticFunding",
+    { from: deployer, log: true },
+    "stakeToProposal",
+    0,
+    String(1e18)
+  );
 
   // To take ownership of osmoticFunding using the ownable library uncomment next line and add the
   // address you want to be the owner.
