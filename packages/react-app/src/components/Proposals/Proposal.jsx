@@ -1,3 +1,4 @@
+import { InfoCircleOutlined } from "@ant-design/icons";
 import {
   Badge,
   Button,
@@ -12,6 +13,7 @@ import {
   Slider,
   Space,
   Statistic,
+  Tooltip,
   Typography,
 } from "antd";
 import { useContractReader } from "eth-hooks";
@@ -19,14 +21,39 @@ import { utils } from "ethers";
 import { useState } from "react";
 const { Title, Paragraph, Text, Link } = Typography;
 
-function ProposalCard({ proposal, onAdd, onStake, stakedOnProposal, minStake, voterStaked }) {
-  const [amount, setAmount] = useState(0);
+function format(bn) {
+  return Number.parseFloat(utils.formatUnits(bn || 0, 18)).toFixed(2);
+}
+
+function ProposalCard({
+  proposal,
+  onAdd,
+  onStake,
+  stakedOnProposal,
+  minStake,
+  voterStaked,
+  raised,
+  rate,
+  withdrawAll,
+  voterBalance,
+  targetRate,
+  totalVoterStake,
+  faucet,
+}) {
   const active = minStake && stakedOnProposal?.gt(minStake);
-  const raised = 10000;
-  const rate = 100;
   const stakeTokenSymbol = "GTC";
   const requestTokenSymbol = "DAI";
-
+  const _minStake = format(minStake);
+  const _voterStaked = format(voterStaked);
+  const _stakedOnProposal = format(stakedOnProposal);
+  const percent = (minStake && minStake.gt(0) && stakedOnProposal?.mul(100).div(minStake)) || 0;
+  const _raised = utils.formatUnits(raised || 0, 18);
+  const _rate = utils.formatUnits(rate?.mul(2_592_000) || 0, 18);
+  const _targetRate = format(targetRate?.mul(2_592_000));
+  const _stakeOnOtherProposals = format(totalVoterStake?.sub(voterStaked || 0));
+  const _availableToStake = format(voterBalance?.sub(totalVoterStake || 0).sub(voterStaked || 0));
+  const _voterBalance = format(voterBalance);
+  const [amount, setAmount] = useState(_voterStaked);
   const added = proposal.index >= 0;
 
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -65,21 +92,34 @@ function ProposalCard({ proposal, onAdd, onStake, stakedOnProposal, minStake, vo
           {active ? (
             <Row gutter="40">
               <Col span={12}>
-                <Statistic title="Raising…" value={raised} suffix={requestTokenSymbol}></Statistic>
+                <Statistic title="Raising…" value={_raised} suffix={requestTokenSymbol}></Statistic>
               </Col>
               <Col span={12}>
-                <Statistic title="Rate per month" value={rate} suffix={requestTokenSymbol}></Statistic>
+                <Statistic
+                  title={
+                    <>
+                      Rate per month{" "}
+                      <Tooltip
+                        title={`Because ${_stakedOnProposal} ${stakeTokenSymbol} are staked in total, the monthly rate will grow up to ${_targetRate} ${requestTokenSymbol}/month`}
+                      >
+                        <InfoCircleOutlined />
+                      </Tooltip>
+                    </>
+                  }
+                  value={_rate}
+                  suffix={requestTokenSymbol}
+                ></Statistic>
               </Col>
             </Row>
           ) : (
             <Row>
               <Col span={12}>
-                <Progress type="circle" percent={80} status="active" />
+                <Progress type="circle" percent={percent} status="active" />
               </Col>
               <Col span={12}>
                 <Statistic
                   title="staked"
-                  value={`${stakedOnProposal || 0}/${minStake}`}
+                  value={`${_stakedOnProposal}/${_minStake}`}
                   suffix={stakeTokenSymbol}
                 ></Statistic>
               </Col>
@@ -91,11 +131,11 @@ function ProposalCard({ proposal, onAdd, onStake, stakedOnProposal, minStake, vo
           {added ? (
             voterStaked?.gt(0) ? (
               <Button block size="large" onClick={showModal}>
-                Staking {utils.parseUnits(voterStaked, 18, { commify: true })} {stakeTokenSymbol}…
+                Staking {_voterStaked} {stakeTokenSymbol}…
               </Button>
             ) : (
               <Button block size="large" type="primary" onClick={showModal}>
-                Stake ${stakeTokenSymbol}
+                Stake {stakeTokenSymbol}
               </Button>
             )
           ) : (
@@ -111,14 +151,18 @@ function ProposalCard({ proposal, onAdd, onStake, stakedOnProposal, minStake, vo
           >
             <Row>
               <Col span={12} align="center">
-                <Statistic title="Your balance" value={100} suffix={stakeTokenSymbol}></Statistic>
-                <Button size="small" type="link">
+                <Statistic title="Your balance" value={_voterBalance} suffix={stakeTokenSymbol}></Statistic>
+                <Button size="small" type="link" onClick={faucet}>
                   Request more
                 </Button>
               </Col>
               <Col span={12} align="center">
-                <Statistic title="Staked on other proposals" value={50} suffix={stakeTokenSymbol}></Statistic>
-                <Button size="small" type="link">
+                <Statistic
+                  title="Staked on other proposals"
+                  value={_stakeOnOtherProposals}
+                  suffix={stakeTokenSymbol}
+                ></Statistic>
+                <Button size="small" type="link" onClick={withdrawAll}>
                   Withdraw all
                 </Button>
               </Col>
@@ -134,7 +178,7 @@ function ProposalCard({ proposal, onAdd, onStake, stakedOnProposal, minStake, vo
                 </Col>
                 <Row>
                   <Col flex="auto">
-                    <Slider defaultValue={amount} onChange={setAmount} />
+                    <Slider defaultValue={amount} max={parseFloat(_availableToStake)} onChange={setAmount} />
                   </Col>
                   <Col span={5} align="right">
                     <InputNumber value={amount} onChange={setAmount} />
@@ -148,13 +192,30 @@ function ProposalCard({ proposal, onAdd, onStake, stakedOnProposal, minStake, vo
     </Badge.Ribbon>
   );
 }
-export default function Proposal({ proposal, tx, readContracts, writeContracts, address }) {
+export default function Proposal({
+  proposal,
+  tx,
+  readContracts,
+  writeContracts,
+  address,
+  totalVoterStake,
+  voterBalance,
+}) {
   function onAdd(proposal) {
-    console.log(`https://gitcoin.co/grants/${proposal.id}`, proposal.admin_address);
     tx(writeContracts?.OsmoticFunding.addProposal(`https://gitcoin.co/grants/${proposal.id}`, proposal.admin_address));
   }
-  function onStake(proposal) {
-    tx(writeContracts.OsmoticFunding.stakeOnProposal(proposal.index, proposal.beneficiary));
+  async function onStake(proposal, _amount) {
+    const amount = utils.parseUnits(String(_amount), 18);
+    await tx(writeContracts.StakeToken.approve(writeContracts.OsmoticFunding.address, amount));
+    await tx(writeContracts.OsmoticFunding.setStake(proposal.index, amount));
+  }
+
+  function faucet() {
+    tx(writeContracts.OsmoticFunding.faucet());
+  }
+
+  function withdrawAll() {
+    tx(writeContracts.OsmoticFunding.withdrawStake(address, false));
   }
 
   const minStake = useContractReader(readContracts, "OsmoticFunding", "minStake");
@@ -165,7 +226,11 @@ export default function Proposal({ proposal, tx, readContracts, writeContracts, 
   const stakedOnProposal = useContractReader(readContracts, "OsmoticFunding", "getProposal", [
     proposal.index,
   ])?.stakedTokens;
-  console.log(minStake, stakedOnProposal, stakedOnProposal);
+
+  const raised = useContractReader(readContracts, "OsmoticFunding", "claimable", [proposal.index]);
+  const rate = useContractReader(readContracts, "OsmoticFunding", "rate", [proposal.index]);
+  const targetRate = useContractReader(readContracts, "OsmoticFunding", "targetRate", [proposal.index]);
+
   return (
     <ProposalCard
       proposal={proposal}
@@ -174,6 +239,13 @@ export default function Proposal({ proposal, tx, readContracts, writeContracts, 
       minStake={minStake}
       voterStaked={voterStaked}
       stakedOnProposal={stakedOnProposal}
+      raised={raised}
+      rate={rate}
+      totalVoterStake={totalVoterStake}
+      voterBalance={voterBalance}
+      faucet={faucet}
+      withdrawAll={withdrawAll}
+      targetRate={targetRate}
     ></ProposalCard>
   );
 }

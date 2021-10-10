@@ -12,14 +12,14 @@ const deployFunc: DeployFunction = async (hre) => {
   // Deploy stake token
   const { address: stakeTokenAddress } = await deploy("StakeToken", {
     from: deployer,
-    args: ["Test GTC", "GTC", deployer, String(100e18)],
+    args: ["Test GTC", "GTC", deployer, String(100e18 + "0000")],
     log: true,
     contract: "ERC20Mock",
   });
   // Deploy request token
   const { address: requestTokenAddress } = await deploy("RequestToken", {
     from: deployer,
-    args: ["Test DAI", "DAI", deployer, String(100e18)],
+    args: ["Test DAI", "DAI", deployer, String(100e18 + "000000")],
     log: true,
     contract: "ERC20Mock",
   });
@@ -30,13 +30,22 @@ const deployFunc: DeployFunction = async (hre) => {
     log: true,
   });
 
+  // Fill the faucet
+  await execute(
+    "StakeToken",
+    { from: deployer, log: true },
+    "transfer",
+    osmoticFundingAddress,
+    String(100e18) + "00"
+  );
+
   // Transfer request tokens
   await execute(
     "RequestToken",
     { from: deployer, log: true },
     "transfer",
     osmoticFundingAddress,
-    String(100e18)
+    String(100e18) + "000"
   );
 
   // Add test proposals
@@ -101,7 +110,7 @@ const deployFunc: DeployFunction = async (hre) => {
   await execute(
     "OsmoticFunding",
     { from: deployer, log: true },
-    "stakeToProposal",
+    "setStake",
     0,
     String(1e18)
   );

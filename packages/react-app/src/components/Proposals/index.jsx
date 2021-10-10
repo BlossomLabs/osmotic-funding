@@ -13,8 +13,13 @@ export default function Proposals({ address, mainnetProvider, localProvider, tx,
   const stakeTokenSymbol = useContractReader(readContracts, "OsmoticFunding", "stakeTokenSymbol");
   const requestTokenSymbol = useContractReader(readContracts, "OsmoticFunding", "requestTokenSymbol");
   const totalStaked = useContractReader(readContracts, "OsmoticFunding", "totalStaked");
-  const _availableFunds = useContractReader(readContracts, "OsmoticFunding", "availableFunds");
-  const availableFunds = _availableFunds && utils.formatUnits(_availableFunds.toString(), 18);
+  const availableFunds = useContractReader(readContracts, "OsmoticFunding", "availableFunds");
+
+  const totalVoterStake = useContractReader(readContracts, "OsmoticFunding", "getTotalVoterStake", [address]);
+  const voterBalance = useContractReader(readContracts, "OsmoticFunding", "stakeTokenBalanceOf", [address]);
+
+  const _availableFunds = utils.formatUnits(availableFunds || 0, 18);
+  const _totalStaked = utils.formatUnits(totalStaked || 0, 18);
   const proposalsRef = useRef(null);
   const [searchTerm, setSearchTerm] = useState();
   const [searchedProposals] = useApi(
@@ -33,11 +38,17 @@ export default function Proposals({ address, mainnetProvider, localProvider, tx,
     }
   `;
   const { loading, data } = useQuery(query, { pollInterval: 2500 });
-  // const addedProposals = data?.proposals.map(p => p.link.match(/gitcoin.co\/grants\/(\d+)/));
-  const addedProposals = [899, 2388, 795, 277, 539, 1141, 191];
+  // const subgraphProposals = data?.proposals.map(p => ({
+  //   index: p.id,
+  //   grantId: p.link.match(/gitcoin.co\/grants\/(\d+)/)[1],
+  // }));
+  // const subgraphOrderedProposals = subgraphProposals
+  //   ?.sort((p1, p2) => p1.id < p2.id)
+  //   .reduce((acc, p) => [...acc, parseInt(p.grantId)], []);
+  const orderedProposals = /*subgraphOrderedProposals ||*/ [899, 2388, 795, 277, 539, 1141, 191];
   const proposals = searchedProposals
     ?.filter(p => p.active && p.id !== 900)
-    .map(p => ({ ...p, index: addedProposals.lastIndexOf(p.id) }));
+    .map(p => ({ ...p, index: orderedProposals.lastIndexOf(p.id) }));
   useEffect(() => {
     if (searchTerm) {
       proposalsRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -65,10 +76,10 @@ export default function Proposals({ address, mainnetProvider, localProvider, tx,
             </Row>
             <Row>
               <Col span={12}>
-                <Statistic amount={availableFunds} suffix={requestTokenSymbol} title="available funds" />
+                <Statistic value={_availableFunds} suffix={requestTokenSymbol} title="available funds" />
               </Col>
               <Col span={12}>
-                <Statistic amount={totalStaked} suffix={stakeTokenSymbol} title="total staked" />
+                <Statistic value={_totalStaked} suffix={stakeTokenSymbol} title="total staked" />
               </Col>
             </Row>
           </Space>
@@ -85,8 +96,15 @@ export default function Proposals({ address, mainnetProvider, localProvider, tx,
         <Row gutter={[50, 30]}>
           {proposals ? (
             proposals.map(proposal => (
-              <Col xs={24} lg={12} xl={8} xxl={6}>
-                <Proposal proposal={proposal} tx={tx} readContracts={readContracts} writeContracts={writeContracts} />
+              <Col xs={24} lg={12} xl={8} xxl={6} id={proposal.id}>
+                <Proposal
+                  proposal={proposal}
+                  tx={tx}
+                  readContracts={readContracts}
+                  writeContracts={writeContracts}
+                  voterBalance={voterBalance}
+                  totalVoterStake={totalVoterStake}
+                />
               </Col>
             ))
           ) : (
