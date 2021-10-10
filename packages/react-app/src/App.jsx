@@ -248,9 +248,7 @@ function App(props) {
     "0x34aA3F359A9D614239015126635CE7732c18fDF3",
   ]);
 
-  const tokenBlance = useContractReader(readContracts, "StakeToken", "balanceOf", [address]);
-
-  console.log("Token Balance: ", tokenBlance);
+  const voterBalance = useContractReader(readContracts, "OsmoticFunding", "stakeTokenBalanceOf", [address]);
 
   // // keep track of a variable from the contract in the local React state:
   // const purpose = useContractReader(readContracts, "OsmoticFunding", "purpose");
@@ -452,8 +450,8 @@ function App(props) {
     localProvider &&
     localProvider._network &&
     localProvider._network.chainId === 31337 &&
-    tokenBlance &&
-    ethers.utils.formatEther(tokenBlance) <= 0
+    voterBalance &&
+    ethers.utils.formatEther(voterBalance) <= 0
   ) {
     faucetHint = (
       <div style={{ padding: 16 }}>
@@ -494,6 +492,7 @@ function App(props) {
               readContracts={readContracts}
               writeContracts={writeContracts}
               mainnetProvider={mainnetProvider}
+              voterBalance={voterBalance}
             />
           </Route>
           <Route path="/contract">
@@ -582,8 +581,7 @@ function App(props) {
           loadWeb3Modal={loadWeb3Modal}
           logoutOfWeb3Modal={logoutOfWeb3Modal}
           blockExplorer={blockExplorer}
-          readContracts={readContracts}
-          contractName={"StakeToken"}
+          voterBalance={voterBalance}
           tokenSymbol={"GTC"}
         />
         {faucetHint}
