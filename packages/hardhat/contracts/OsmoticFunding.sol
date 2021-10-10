@@ -11,7 +11,6 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import { ABDKMath64x64 } from "abdk-libraries-solidity/ABDKMath64x64.sol";
 import { IAdaptiveFlowAgreementV1 } from "./agreement/IAdaptiveFlowAgreementV1.sol";
 import { FluidFunding } from "./FluidFunding.sol";
-import "hardhat/console.sol";
 
 contract OsmoticFunding is Ownable, FluidFunding {
   using ABDKMath64x64 for int128;

@@ -13,7 +13,8 @@ import { SignedSafeMath } from "@openzeppelin/contracts/math/SignedSafeMath.sol"
 import { IAdaptiveFlowAgreementV1 } from "./IAdaptiveFlowAgreementV1.sol";
 import  { ABDKMath64x64 } from "abdk-libraries-solidity/ABDKMath64x64.sol";
 
-contract AdaptiveFlowAgreementV1 is AgreementBase, IAdaptiveFlowAgreementV1 {
+
+contract AdaptiveFlowAgreementV1 is IAdaptiveFlowAgreementV1, AgreementBase {
   using ABDKMath64x64 for int128;
   using ABDKMath64x64 for uint256;
   using ABDKMath64x64 for int96;
@@ -24,42 +25,28 @@ contract AdaptiveFlowAgreementV1 is AgreementBase, IAdaptiveFlowAgreementV1 {
 
   int128 constant private ONE = 1 << 64;
   int128 constant private ALMOST_ONE = int128((999 << 64) / 1000); // 0.999
-  
-  // Available Adaptive Periods (AP):  0.999 ^ (1 / time).
-  // We can use it to adjust decay/grow velocity.
-  int128 public AP_1_DAY = int128(999920052324701219 << 64) / 2 ** 18; 
-  int128 public AP_2_DAY = int128(999960025363364823 << 64) / 2 ** 18;
-  int128 public AP_3_DAY = int128(999973350064687663 << 64) / 2 ** 18;
-  int128 public AP_1_WEEK = int128(99998857851218504 << 64) / 2 ** 18;
-  int128 public AP_2_WEEK = int128(99999428923978613 << 64) / 2 ** 18;
-  int128 public AP_3_WEEK = int128(99999619282290043 << 64) / 2 ** 18;
-  int128 public AP_1_MONTH = int128(9999973349745083 << 64) / 2 ** 18;
-  int128 public AP_2_MONTH = int128(9999986674863663 << 64) / 2 ** 18;
-  int128 public AP_3_MONTH = int128(9999991116573803 << 64) / 2 ** 18;
-
 
   struct AdaptiveFlowParams {
     uint256 timestamp;
-    bytes32 flowId;
     address receiver;
     address sender;
+    bytes32 flowId;
     // TODO: Should use unsigned integers instead as negative/positive flows are infered when calculating their rate
     int96 lastRate;
     int96 targetRate;
-    int64 adaptivePeriod;
+    int128 adaptivePeriod;
     bytes userData;
   }
 
   struct AdaptiveFlowData {
     uint256 timestamp;
-    address sender;
+    address receiver;
     int96 lastRate;
     int96 targetRate;
-    int64 adaptivePeriod;
+    int128 adaptivePeriod;
   }
 
   mapping(address => EnumerableSet.Bytes32Set) private accountsFlows;
-
 
   /**************************************************************************
     * ISuperAgreement interface
@@ -84,8 +71,14 @@ contract AdaptiveFlowAgreementV1 is AgreementBase, IAdaptiveFlowAgreementV1 {
 
       for(uint256 i = 0; i < flows.length(); i++) {
         (, AdaptiveFlowData memory flowData) = _getFlowData(token, flows.at(i));
-        dynamicBalance = _calculateSuperTokenBalance(time, flowData.lastRate, flowData.targetRate, flowData.adaptivePeriod, account == flowData.sender);
-        totalDynamicBalance = totalDynamicBalance.add(dynamicBalance);
+
+        dynamicBalance = _calculateSuperTokenBalance(time.sub(flowData.timestamp), flowData.lastRate, flowData.targetRate, flowData.adaptivePeriod);
+
+        if (account == flowData.receiver) {
+          totalDynamicBalance = totalDynamicBalance.add(dynamicBalance);
+        } else {
+          totalDynamicBalance = totalDynamicBalance.sub(dynamicBalance);
+        }
       }
       deposit = 0;
       owedDeposit = 0;
@@ -105,8 +98,8 @@ contract AdaptiveFlowAgreementV1 is AgreementBase, IAdaptiveFlowAgreementV1 {
   {
     (bool exist, AdaptiveFlowData memory flowData) =_getFlowData(token, _generateFlowId(sender, receiver));
 
-    if (exist) {
-      currentRate = _calculateFlowRate(flowData.lastRate, flowData.targetRate, flowData.adaptivePeriod, time);
+    if (exist && time > flowData.timestamp) {
+      currentRate = _calculateFlowRate(flowData.lastRate, flowData.targetRate, flowData.adaptivePeriod, time.sub(flowData.timestamp));
     }
   }
 
@@ -114,7 +107,7 @@ contract AdaptiveFlowAgreementV1 is AgreementBase, IAdaptiveFlowAgreementV1 {
     ISuperfluidToken token,
     address receiver,
     int96 targetRate,
-    int64 adaptivePeriod,
+    int128 adaptivePeriod,
     bytes calldata ctx
   ) 
     external
@@ -134,31 +127,53 @@ contract AdaptiveFlowAgreementV1 is AgreementBase, IAdaptiveFlowAgreementV1 {
     flowParams.adaptivePeriod = adaptivePeriod;
     flowParams.userData = currentContext.userData;
     require(flowParams.sender != flowParams.receiver, "AFA: no self flow");
-    require(flowParams.targetRate > 0, "AFA: invalid target rate");
+    require(flowParams.targetRate > 0, "AFA: invalid target rate for new flow");
     require(flowParams.adaptivePeriod > 0, "AFA: invalid adaptive period");
 
-
     (bool exist,) = _getFlowData(token, flowParams.flowId);
-    require(!exist, "AFA: flow already exist");
+    require(!exist, "AFA: flow already exists");
 
+    newCtx = ctx;
+    (,AdaptiveFlowData memory oldFlowData) = _getFlowData(token, flowParams.flowId);
 
     accountsFlows[flowParams.sender].add(flowParams.flowId);
     accountsFlows[flowParams.receiver].add(flowParams.flowId);
     
-    _changeFlow(token, flowParams, currentContext);
+    _changeFlow(token, flowParams, oldFlowData, false);
+
+    _requireAvailableBalance(token, currentContext);
   }
 
   function updateFlow(
     ISuperfluidToken token,
     address receiver,
-    uint256 finalRate,
+    int96 targetRate,
     bytes calldata ctx
   ) 
     external
     override
     returns (bytes memory newCtx) 
   {
-    // TODO: implement
+    AdaptiveFlowParams memory flowParams;
+    require(receiver != address(0), "AFA: receiver is zero");
+    ISuperfluid.Context memory currentContext = AgreementLibrary.authorizeTokenAccess(token, ctx);
+    flowParams.flowId = _generateFlowId(currentContext.msgSender, receiver);
+    flowParams.timestamp = currentContext.timestamp;
+    flowParams.sender = currentContext.msgSender;
+    (bool exist, AdaptiveFlowData memory oldFlowData) = _getFlowData(token, flowParams.flowId);
+    require(exist, "AFA: flow does not exists");
+
+    flowParams.receiver = receiver;
+    flowParams.targetRate = targetRate;
+    require(flowParams.sender != flowParams.receiver, "AFA: no self flow");
+
+    flowParams.adaptivePeriod = oldFlowData.adaptivePeriod;
+    flowParams.userData = currentContext.userData;
+
+    _changeFlow(token, flowParams, oldFlowData, false);
+
+    _requireAvailableBalance(token, currentContext);
+
     return bytes("");
   }
 
@@ -172,7 +187,37 @@ contract AdaptiveFlowAgreementV1 is AgreementBase, IAdaptiveFlowAgreementV1 {
     override
     returns (bytes memory newCtx)
   {
-    // TODO: implement
+    AdaptiveFlowParams memory flowParams;
+    require(sender != address(0), "AFA: sender is zero");
+    require(receiver != address(0), "AFA: receiver is zero");
+    ISuperfluid.Context memory currentContext = AgreementLibrary.authorizeTokenAccess(token, ctx);
+    flowParams.flowId = _generateFlowId(currentContext.msgSender, receiver);
+    flowParams.sender = currentContext.msgSender;
+    flowParams.receiver = receiver;
+
+    (bool exist, AdaptiveFlowData memory oldFlowData) = _getFlowData(token, flowParams.flowId);
+    require(exist, "AFA: flow does not exists");
+
+    flowParams.timestamp = currentContext.timestamp;
+    flowParams.targetRate = 0;
+    flowParams.adaptivePeriod = oldFlowData.adaptivePeriod;
+    flowParams.userData = currentContext.userData;
+    require(flowParams.sender != flowParams.receiver, "AFA: no self flow");
+
+
+    // // TODO: Implement insolvency and liquidity logic
+    // int256 availableBalance;
+    // // should use currentContext.timestamp
+    // (availableBalance,,) = token.realtimeBalanceOf(sender, block.timestamp);
+    // require(availableBalance >= 0, "AFA: Sender does not have balance");
+    // token.settleBalance(flowParams.sender, -dynamicBalance);
+    // token.settleBalance(flowParams.receiver, dynamicBalance);
+
+    _changeFlow(token, flowParams, oldFlowData, true);
+
+    accountsFlows[flowParams.sender].remove(flowParams.flowId);
+    accountsFlows[flowParams.receiver].remove(flowParams.flowId);
+
     return bytes("");
   }
 
@@ -185,18 +230,20 @@ contract AdaptiveFlowAgreementV1 is AgreementBase, IAdaptiveFlowAgreementV1 {
     view
     override 
     returns (
+      uint256 timestamp,
       int96 lastRate,
       int96 targetRate,
       int128 adaptivePeriod,
       int96 flowRate
     ) 
   {
-    (, AdaptiveFlowData memory data) = _getFlowData(token, _generateFlowId(sender, receiver));
-    flowRate = _calculateFlowRate(lastRate, targetRate, adaptivePeriod, block.timestamp);
+    (, AdaptiveFlowData memory flowData) = _getFlowData(token, _generateFlowId(sender, receiver));
+    flowRate = _calculateFlowRate(lastRate, targetRate, adaptivePeriod, block.timestamp.sub(flowData.timestamp));
     return (
-      data.lastRate,
-      data.targetRate,
-      data.adaptivePeriod,
+      flowData.timestamp,
+      flowData.lastRate,
+      flowData.targetRate,
+      flowData.adaptivePeriod,
       flowRate
     );
   }
@@ -208,30 +255,50 @@ contract AdaptiveFlowAgreementV1 is AgreementBase, IAdaptiveFlowAgreementV1 {
   function _changeFlow(
     ISuperfluidToken token,
     AdaptiveFlowParams memory flowParams,
-    ISuperfluid.Context memory currentContext
+    AdaptiveFlowData memory oldFlowData,
+    bool terminateFlow
+    // ISuperfluid.Context memory currentContext
   ) 
     private
     returns (AdaptiveFlowData memory newFlowData)
   {
-    (,AdaptiveFlowData memory oldFlowData) = _getFlowData(token, flowParams.flowId);
+    uint256 timePassed = flowParams.timestamp.sub(oldFlowData.timestamp);
+    int96 currentRate = _calculateFlowRate(oldFlowData.lastRate, oldFlowData.targetRate, flowParams.adaptivePeriod, timePassed);
 
-    uint256 timePassed = currentContext.timestamp.sub(oldFlowData.timestamp);
-    int96 currentRate = _calculateFlowRate(oldFlowData.lastRate, oldFlowData.targetRate, oldFlowData.adaptivePeriod, currentContext.timestamp);
+    // Calculate and update balance for both the sender and the receiver
+    int256 dynamicBalance = _calculateSuperTokenBalance(timePassed, oldFlowData.lastRate, currentRate, flowParams.adaptivePeriod);
+    token.settleBalance(flowParams.sender, -dynamicBalance);
+    token.settleBalance(flowParams.receiver, dynamicBalance);
 
-    // Calculate and update balance
-    int256 dynamicBalance = _calculateSuperTokenBalance(timePassed, oldFlowData.lastRate, currentRate, oldFlowData.adaptivePeriod, flowParams.sender == oldFlowData.sender);
-    token.settleBalance(flowParams.sender, dynamicBalance);
+    if (!terminateFlow) {
+      // Update flow state data
+      newFlowData = AdaptiveFlowData(
+        // currentContext.timestamp,
+        flowParams.timestamp,
+        flowParams.receiver,
+        // The new last target rate will be the current rate
+        currentRate,
+        flowParams.targetRate,
+        flowParams.adaptivePeriod
+      );
+      _updateFlowData(token, flowParams.flowId, newFlowData);
 
-    // Update flow state data
-    newFlowData = AdaptiveFlowData(
-      currentContext.timestamp,
-      flowParams.sender,
-      // The new last target rate will be the current rate
-      currentRate,
-      flowParams.targetRate,
-      flowParams.adaptivePeriod
-    );
-    _updateFlowData(token, flowParams.flowId, newFlowData);
+      // Emit event
+      emit FlowUpdated(
+        token,
+        flowParams.sender,
+        flowParams.receiver,
+        flowParams.timestamp,
+        newFlowData.lastRate,
+        newFlowData.targetRate,
+        flowParams.adaptivePeriod,
+        dynamicBalance,
+        flowParams.userData
+      );
+    } else {
+      _deleteFlowData(token, flowParams.flowId);
+      emit FlowDeleted(token, flowParams.sender, flowParams.receiver, flowParams.timestamp, dynamicBalance, flowParams.userData);    
+    }
     
   }
 
@@ -259,6 +326,15 @@ contract AdaptiveFlowAgreementV1 is AgreementBase, IAdaptiveFlowAgreementV1 {
     token.updateAgreementData(dId, _encodeFlowData(flowData));
   }
 
+  function _deleteFlowData
+  (
+    ISuperfluidToken token,
+    bytes32 dId
+  )
+    private
+  {
+    token.terminateAgreement(dId, 2);
+  }
 
   /**************************************************************************
     * Flow Data Pure Functions
@@ -278,41 +354,49 @@ contract AdaptiveFlowAgreementV1 is AgreementBase, IAdaptiveFlowAgreementV1 {
       uint256 lastRate;
       uint256 targetRate;
       int128 oneSubAt;
+      int128 adaptivePeriod;
       int128 lna;
   }
   function _calculateSuperTokenBalance(
     uint256 _timePassed,
     int96 _lastRate,
     int96 _targetRate,
-    int128 adaptivePeriod,
-    bool isNegative
+    int128 _adaptivePeriod
   ) public pure returns(int256 amount) {
     _StackVars_calculateSuperTokenBalance memory vars;
-
     vars.lastRate = uint256(_lastRate); 
     vars.targetRate = uint256(_targetRate);
-    vars.oneSubAt = ONE.sub(adaptivePeriod.pow(_timePassed));
-    vars.lna = ONE.div(adaptivePeriod).ln();
+    vars.adaptivePeriod = _adaptivePeriod;
+    vars.oneSubAt = ONE.sub(vars.adaptivePeriod.pow(_timePassed));
+    vars.lna = ONE.div(vars.adaptivePeriod).ln();
 
     // amount = (targetRate * (1 - adaptivePeriod ^ time + time * ln(1 / adaptivePeriod)) + lastRate * (1 - alpha ^ time)) / ln(1 / adaptivePeriod)
     amount = int256(ONE.div(vars.lna).mulu(vars.oneSubAt.add(_timePassed.fromUInt().mul(vars.lna)).mulu(vars.targetRate).add(vars.oneSubAt.mulu(vars.lastRate))));
-
-    if (isNegative) {
-      amount = -amount;
-    }
   }
 
   function _generateFlowId(address sender, address receiver) private pure returns(bytes32 id) {
-      return keccak256(abi.encode(sender, receiver));
+    return keccak256(abi.encode(sender, receiver));
+  }
+
+  function _requireAvailableBalance(
+    ISuperfluidToken token,
+    ISuperfluid.Context memory currentContext
+  )
+    private view
+  {
+
+    (int256 availableBalance,,) = token.realtimeBalanceOf(currentContext.msgSender, currentContext.timestamp);
+    require(availableBalance >= 0, "AFA: not enough available balance");
+    
   }
 
   //
   // Data packing:
   //
-  // WORD A: | lastRate |  targetRate | adaptivePeriod
-  //         | 96b      |    96b      |    64b     |
-  // WORD B: | timestamp | sender (needed for setting flow sign) |
-  //         |   32b     |  160b                                 |  
+  // WORD A: |   timestamp     |  lastRate   |  adaptivePeriod | 
+  //         |     32b         |    96b      |    128b         |
+  // WORD B: |   targetRate    | receiver (needed for setting flow sign) |
+  //         |     96b         |             160b                      |  
   // NOTE:
   // - rates have 96 bits length
 
@@ -322,19 +406,18 @@ contract AdaptiveFlowAgreementV1 is AgreementBase, IAdaptiveFlowAgreementV1 {
       internal pure
       returns(bytes32[] memory data)
   {
-      // enable these for debugging
-      // assert(flowData.deposit & type(uint32).max == 0);
-      // assert(flowData.owedDeposit & type(uint32).max == 0);
-      data = new bytes32[](2);
-      data[0] = bytes32(
-        ((uint256(uint96(flowData.lastRate)) << 160)) |
-        (uint256(uint96(flowData.targetRate)) << 64) |
-        (uint256(uint64(flowData.adaptivePeriod)))
-      );
-      data[1] = bytes32(
-        ((uint256(flowData.timestamp)) << 224) |
-        ((uint256(uint160(flowData.sender))) << 64)
-      );
+    data = new bytes32[](2);
+    // Word A
+    data[0] = bytes32(
+      ((uint256(flowData.timestamp)) << 224) |
+      ((uint256(uint96(flowData.lastRate)) << 128)) |
+      (uint256(uint128(flowData.adaptivePeriod)))
+    );
+    // Word B
+    data[1] = bytes32(
+      (uint256(uint96(flowData.targetRate)) << 160) |
+      (uint256(uint160(flowData.receiver)))
+    );
   }
 
   function _decodeFlowData
@@ -342,18 +425,18 @@ contract AdaptiveFlowAgreementV1 is AgreementBase, IAdaptiveFlowAgreementV1 {
       uint256 wordA,
       uint256 wordB
   )
-      internal pure
-      returns(bool exist, AdaptiveFlowData memory flowData)
+    internal pure
+    returns(bool exist, AdaptiveFlowData memory flowData)
   {
-      exist = wordA > 0 && wordB > 0;
-      if (exist) {
-          // word A
-          flowData.lastRate = int96((wordA >> 160) & uint256(type(uint96).max));
-          flowData.targetRate = int96((wordA >> 64) & uint256(type(uint96).max));
-          flowData.adaptivePeriod = int64(wordA & uint256(type(uint64).max));
-          // word B
-          flowData.timestamp = uint32((wordB >> 224) & uint256(type(uint32).max));
-          flowData.sender = address((wordB >> 64) & uint256(type(uint160).max));
-      }
+    exist = wordA > 0 && wordB > 0;
+    if (exist) {
+      // Word A
+      flowData.timestamp = uint32((wordA >> 224) & uint256(type(uint32).max));
+      flowData.lastRate = int96((wordA >> 128) & uint256(type(uint96).max));
+      flowData.adaptivePeriod = int128(wordA & uint256(type(uint128).max));
+      // Word B
+      flowData.targetRate = int96((wordB >> 160) & uint256(type(uint96).max));
+      flowData.receiver = address(wordB & uint256(type(uint160).max));
+    }
   }
 }
