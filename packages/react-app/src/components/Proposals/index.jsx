@@ -23,16 +23,16 @@ export default function Proposals({ address, mainnetProvider, localProvider, tx,
   );
 
   const query = gql`
-  {
-    proposals(first: 25, orderBy: createdAt, orderDirection: desc) {
-      id
-      link
-      beneficiary{
+    {
+      proposals(first: 25, orderBy: createdAt, orderDirection: desc) {
         id
+        link
+        beneficiary {
+          id
+        }
       }
     }
-  }
-`;
+  `;
   const { loading, data } = useQuery(query, { pollInterval: 2500 });
   // const addedProposals = data?.proposals.map(p => p.link.match(/gitcoin.co\/grants\/(\d+)/));
   const addedProposals = [899, 2388, 795, 277, 539, 1141, 191];
