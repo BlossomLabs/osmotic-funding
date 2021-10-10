@@ -2,6 +2,7 @@
 pragma solidity 0.7.6;
 pragma experimental ABIEncoderV2;
 
+import { ISuperfluidToken } from "@superfluid-finance/ethereum-contracts/contracts/interfaces/superfluid/ISuperfluidToken.sol";
 import { ISuperfluid, ISuperToken } from "@superfluid-finance/ethereum-contracts/contracts/interfaces/superfluid/ISuperfluid.sol";
 import { SuperAppBase, SuperAppDefinitions } from "@superfluid-finance/ethereum-contracts/contracts/apps/SuperAppBase.sol";
 import { IAdaptiveFlowAgreementV1 } from "./agreement/IAdaptiveFlowAgreementV1.sol";
@@ -41,16 +42,116 @@ contract FluidFunding is SuperAppBase {
     // _host.registerAppWithKey(configWord, _registrationKey);
   }
 
-  function _updateFundingFlow(address recipient, uint256 _reward) internal returns (bytes memory newCtx) {
-    (,int96 targetRate,,) = afa.getFlow(acceptedToken, address(this), recipient);
+  function createFlow(
+    ISuperfluidToken token,
+    address receiver,
+    int96 targetRate,
+    int128 adaptivePeriod
+  )
+    external
+    returns (bytes memory newCtx)
+  {
+    return host.callAgreement(
+      afa,
+      abi.encodeWithSelector(
+        afa.createFlow.selector,
+        token,
+        receiver,
+        targetRate,
+        adaptivePeriod,
+        new bytes(0)
+      ),
+      "0x"
+    );
+  }
 
-    // Check if stream flow already exists
-    if (targetRate != 0) {
-      return host.callAgreement(afa, abi.encodeWithSelector(afa.createFlow.selector, acceptedToken, recipient, 0, int96(_reward), new bytes(0) ), "0x");
-    }
-    // TODO: Implement update flow functionality
-    // else {
-    //   return host.callAgreement(afa, abi.encodeWithSelector(afa.updateFlow.selector, acceptedToken, recipient, 0, int96(_reward), new bytes(0)), "0x");
-    // }
+    function updateFlow(
+    ISuperfluidToken token,
+    address receiver,
+    int96 targetRate
+  )
+    external
+    returns (bytes memory newCtx)
+  {
+    return host.callAgreement(
+      afa,
+      abi.encodeWithSelector(
+        afa.updateFlow.selector,
+        token,
+        receiver,
+        targetRate,
+        new bytes(0)
+      ),
+      "0x"
+    );
+  }
+
+  function deleteFlow(
+    ISuperfluidToken token,
+    address sender,
+    address receiver
+  )
+    external
+    returns (bytes memory newCtx)
+  {
+    return host.callAgreement(
+      afa,
+      abi.encodeWithSelector(
+        afa.deleteFlow.selector,
+        token,
+        sender,
+        receiver,
+        new bytes(0)
+      ),
+      "0x"
+    );
+  }
+
+    function getFlow(
+    ISuperfluidToken token,
+    address sender,
+    address receiver
+  )
+    external
+    view
+    returns (
+      uint256 timestamp,
+      int96 lastRate,
+      int96 targetRate,
+      int128 adaptivePeriod,
+      int96 flowRate
+    )
+  {
+    return afa.getFlow(token, sender, receiver);
+  }
+
+
+  function getFundingFlowRate(
+    ISuperfluidToken requestToken,
+    address beneficiary,
+    uint256 time
+  )
+    external
+    view
+    virtual
+    returns (int96 currentRate)
+  {
+    return afa.realtimeRate(requestToken, address(this), beneficiary, time);
+  }
+
+  function getBeneficiaryBalance(
+    ISuperfluidToken requestToken,
+    address beneficiary,
+    uint256 time
+  )
+    external
+    view
+    returns (
+      int256 totalDynamicBalance,
+      uint256 deposit,
+      uint256 owedDeposit
+    )
+  {
+    return afa.realtimeBalanceOf(requestToken, beneficiary, time);
   }
 }
