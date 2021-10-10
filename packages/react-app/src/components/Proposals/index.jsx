@@ -38,11 +38,17 @@ export default function Proposals({ address, mainnetProvider, localProvider, tx,
     }
   `;
   const { loading, data } = useQuery(query, { pollInterval: 2500 });
-  // const addedProposals = data?.proposals.map(p => p.link.match(/gitcoin.co\/grants\/(\d+)/));
-  const addedProposals = [899, 2388, 795, 277, 539, 1141, 191];
+  // const subgraphProposals = data?.proposals.map(p => ({
+  //   index: p.id,
+  //   grantId: p.link.match(/gitcoin.co\/grants\/(\d+)/)[1],
+  // }));
+  // const subgraphOrderedProposals = subgraphProposals
+  //   ?.sort((p1, p2) => p1.id < p2.id)
+  //   .reduce((acc, p) => [...acc, parseInt(p.grantId)], []);
+  const orderedProposals = /*subgraphOrderedProposals ||*/ [899, 2388, 795, 277, 539, 1141, 191];
   const proposals = searchedProposals
     ?.filter(p => p.active && p.id !== 900)
-    .map(p => ({ ...p, index: addedProposals.lastIndexOf(p.id) }));
+    .map(p => ({ ...p, index: orderedProposals.lastIndexOf(p.id) }));
   useEffect(() => {
     if (searchTerm) {
       proposalsRef.current?.scrollIntoView({ behavior: "smooth" });
