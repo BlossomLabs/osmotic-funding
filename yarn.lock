@@ -1923,7 +1923,7 @@
   optionalDependencies:
     subscriptions-transport-ws "^0.9.18"
 
-"@graphprotocol/graph-cli@^0.22.0":
+"@graphprotocol/graph-cli@^0.22.1":
   version "0.22.2"
   resolved "https://registry.yarnpkg.com/@graphprotocol/graph-cli/-/graph-cli-0.22.2.tgz#f66c5725e730aa18b3459eead529a2e0fb154d40"
   integrity sha512-1O50KaE2zPIKTeDFipbG1r0CYe7Z54ZhwKB3AbfGA0nDsv+y4BTfTgLL/uiLDDT8FDMRSabK7oXOzIXNY4bKJw==
@@ -1952,7 +1952,7 @@
     which "2.0.2"
     yaml "^1.5.1"
 
-"@graphprotocol/graph-ts@^0.22.0":
+"@graphprotocol/graph-ts@^0.22.1":
   version "0.22.1"
   resolved "https://registry.yarnpkg.com/@graphprotocol/graph-ts/-/graph-ts-0.22.1.tgz#3189b2495b33497280f617316cce68074d48e236"
   integrity sha512-T5xrHN0tHJwd7ZnSTLhk5hAL3rCIp6rJ40kBCrETnv1mfK9hVyoojJK6VtBQXTbLsYtKe4SYjjD0cdOsAR9QiA==
@@ -4908,12 +4908,19 @@ axios@^0.18.0:
     follow-redirects "1.5.10"
     is-buffer "^2.0.2"
 
-axios@^0.21.1, axios@^0.21.4:
+axios@^0.21.1:
   version "0.21.4"
   resolved "https://registry.yarnpkg.com/axios/-/axios-0.21.4.tgz#c67b90dc0568e5c1cf2b0b858c43ba28e2eda575"
   integrity sha512-ut5vewkiu8jjGBdqpM44XxjuCjq9LAKeHVmoVfHVzy8eHgxxq8SbAVQNovDA8mVi05kP0Ea/n/UzcSHcTJQfNg==
   dependencies:
     follow-redirects "^1.14.0"
+
+axios@^0.22.0:
+  version "0.22.0"
+  resolved "https://registry.yarnpkg.com/axios/-/axios-0.22.0.tgz#bf702c41fb50fbca4539589d839a077117b79b25"
+  integrity sha512-Z0U3uhqQeg1oNcihswf4ZD57O3NrR1+ZXhxaROaWpDmsDTx7T2HNBV2ulBtie2hwJptu8UvgnJoK+BIqdzh/1w==
+  dependencies:
+    follow-redirects "^1.14.4"
 
 axobject-query@^2.2.0:
   version "2.2.0"
@@ -8949,10 +8956,10 @@ eth-ens-namehash@2.0.8, eth-ens-namehash@^2.0.8:
     idna-uts46-hx "^2.3.1"
     js-sha3 "^0.5.7"
 
-eth-hooks@2.3.8:
-  version "2.3.8"
-  resolved "https://registry.yarnpkg.com/eth-hooks/-/eth-hooks-2.3.8.tgz#419246a1f37efd8822813b0f7298399c16f4bba1"
-  integrity sha512-MnmW2LDaUWjdQbHoR1wEHAMu6L9vaRse2Ofs6O43Wu27tn6fZuNPAZVlYSC6D4aD9JYxKZXR7Uz/bkCczJO0pQ==
+eth-hooks@^2.3.9:
+  version "2.3.9"
+  resolved "https://registry.yarnpkg.com/eth-hooks/-/eth-hooks-2.3.9.tgz#e8b09b83d489bd63796d402d8d16c0c557672998"
+  integrity sha512-E0TlomxlwCtHM4J6BmoiB4hfYQLvyAVW83imQIlC1D7eaILg9yZ4ihqDQM1kKwIuQ3hDn3++cT1Ga+u/Vgt0bg==
   dependencies:
     "@ethersproject/address" "^5.4.0"
     "@ethersproject/bignumber" "^5.4.0"
@@ -10218,7 +10225,7 @@ follow-redirects@1.5.10:
   dependencies:
     debug "=3.1.0"
 
-follow-redirects@^1.0.0, follow-redirects@^1.12.1, follow-redirects@^1.14.0:
+follow-redirects@^1.0.0, follow-redirects@^1.12.1, follow-redirects@^1.14.0, follow-redirects@^1.14.4:
   version "1.14.4"
   resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.14.4.tgz#838fdf48a8bbdd79e52ee51fb1c94e3ed98b9379"
   integrity sha512-zwGkiSXC1MUJG/qmeIFH2HBJx9u0V46QGUe3YR1fXG8bXQxq7fLj0RjLZQ5nubr9qNJUZrH+xUcwXEoXNpfS+g==
@@ -18450,6 +18457,13 @@ react-scripts@4.0.0:
     workbox-webpack-plugin "5.1.4"
   optionalDependencies:
     fsevents "^2.1.3"
+
+react-use-api@^2.5.1:
+  version "2.5.1"
+  resolved "https://registry.yarnpkg.com/react-use-api/-/react-use-api-2.5.1.tgz#0a5fe6b44d1b59cd0fba8503a9459e53d84c76cb"
+  integrity sha512-UguevC+f8KeD9e7QyJ70Qzo1pMaop8GiHX0QLTVrvkMxe+7H2KD+ZOv4neT/C0ujMu/fruQJeMKrydoC2e8ABw==
+  dependencies:
+    lru-cache "^5.1.1"
 
 react@^16.8.6:
   version "16.14.0"

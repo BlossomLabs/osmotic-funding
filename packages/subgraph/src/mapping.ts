@@ -1,9 +1,6 @@
-import { BigInt, Address } from "@graphprotocol/graph-ts";
-import {
-  OsmoticFunding,
-  ProposalAdded,
-} from "../generated/OsmoticFunding/OsmoticFunding";
-import { Proposal, Beneficiary } from "../generated/schema";
+import { BigInt } from "@graphprotocol/graph-ts";
+import { ProposalAdded } from "../generated/OsmoticFunding/OsmoticFunding";
+import { Beneficiary, Proposal } from "../generated/schema";
 
 export function handleProposalAdded(event: ProposalAdded): void {
   let beneficiaryString = event.params.beneficiary.toHexString();
@@ -16,12 +13,12 @@ export function handleProposalAdded(event: ProposalAdded): void {
     beneficiary.createdAt = event.block.timestamp;
     beneficiary.proposalCount = BigInt.fromI32(1);
   } else {
-    beneficiary.proposalCount = beneficiary.proposalCount.plus(BigInt.fromI32(1));
+    beneficiary.proposalCount = beneficiary.proposalCount.plus(
+      BigInt.fromI32(1)
+    );
   }
 
-  let proposal = new Proposal(
-    event.transaction.hash.toHex() + "-" + event.logIndex.toString()
-  );
+  let proposal = new Proposal(event.params.id.toString());
 
   proposal.link = event.params.link;
   proposal.beneficiary = beneficiaryString;
