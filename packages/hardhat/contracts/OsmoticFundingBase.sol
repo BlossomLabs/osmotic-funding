@@ -108,6 +108,15 @@ contract OsmoticFundingBase is Ownable {
     proposalCounter++;
   }
 
+  function setStake(uint256 _proposalId, uint256 _newAmount) external activeProposal(_proposalId) {
+    uint256 currentAmount = getProposalVoterStake(_proposalId, msg.sender);
+    if(_newAmount > currentAmount) {
+      _stakeToProposal(_proposalId, _newAmount.sub(currentAmount), msg.sender);
+    } else if (_newAmount < currentAmount) {
+      _withdrawFromProposal(_proposalId, currentAmount.sub(_newAmount), msg.sender);
+    }
+  }
+
   function stakeToProposal(uint256 _proposalId, uint256 _amount) external activeProposal(_proposalId) {
     _stakeToProposal(_proposalId, _amount, msg.sender);
   }
@@ -219,13 +228,13 @@ contract OsmoticFundingBase is Ownable {
     return _rate = calculateRate(
       block.timestamp - proposal.lastTime, // we assert it doesn't overflow above
       proposal.lastRate,
-      calculateTargetRate(proposal.stakedTokens)
+      targetRate(_proposalId)
     );
   }
 
   function claimable(uint256 _proposalId) public view returns (uint256 _amount) {
     Proposal storage proposal = proposals[_proposalId];
-    _amount = calculateAmount(block.timestamp - proposal.lastTime, proposal.lastRate, calculateTargetRate(proposal.stakedTokens)).add(proposal.balance);
+    _amount = calculateAmount(block.timestamp - proposal.lastTime, proposal.lastRate, targetRate(_proposalId)).add(proposal.balance);
   }
 
   function claim(uint256 _proposalId) external activeProposal(_proposalId) {
@@ -247,6 +256,11 @@ contract OsmoticFundingBase is Ownable {
       uint256 _minStake = minStake();
       _targetRate = (ONE.sub(_minStake.divu(_stake > _minStake ? _stake : _minStake).sqrt())).mulu(maxRatio.mulu(funds));
     }
+  }
+
+  function targetRate(uint256 _proposalId) public view returns(uint256) {
+    Proposal storage proposal = proposals[_proposalId];
+    return calculateTargetRate(proposal.stakedTokens);
   }
 
   /**
@@ -338,10 +352,6 @@ contract OsmoticFundingBase is Ownable {
         }
       }
     }
-  }
-
-    function stakeTokenSymbol() public view returns (string memory) {
-    return stakeToken.symbol();
   }
 
   function _updateVoterStakedProposals(uint256 _proposalId, address _from, uint256 _amount, bool _support) internal {
