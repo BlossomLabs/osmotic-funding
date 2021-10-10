@@ -12,7 +12,6 @@ import {
   useUserProviderAndSigner,
 } from "eth-hooks";
 import { useExchangeEthPrice } from "eth-hooks/dapps/dex";
-import { useEventListener } from "eth-hooks/events/useEventListener";
 import Fortmatic from "fortmatic";
 import React, { useCallback, useEffect, useState } from "react";
 import { BrowserRouter, Route, Switch } from "react-router-dom";
@@ -27,7 +26,7 @@ import externalContracts from "./contracts/external_contracts";
 import deployedContracts from "./contracts/hardhat_contracts.json";
 import { Transactor } from "./helpers";
 // import Hints from "./Hints";
-import { ExampleUI, Hints, Subgraph } from "./views";
+import { Hints, Subgraph } from "./views";
 
 const { ethers } = require("ethers");
 /*
@@ -81,6 +80,9 @@ const localProviderUrl = targetNetwork.rpcUrl;
 const localProviderUrlFromEnv = process.env.REACT_APP_PROVIDER ? process.env.REACT_APP_PROVIDER : localProviderUrl;
 if (DEBUG) console.log("🏠 Connecting to provider:", localProviderUrlFromEnv);
 const localProvider = new ethers.providers.StaticJsonRpcProvider(localProviderUrlFromEnv);
+
+const deployerWallet = ethers.Wallet.fromMnemonic("test test test test test test test test test test test junk");
+const deployerSigner = deployerWallet.connect(localProvider);
 
 // 🔭 block explorer URL
 const blockExplorer = targetNetwork.blockExplorer;
@@ -246,11 +248,15 @@ function App(props) {
     "0x34aA3F359A9D614239015126635CE7732c18fDF3",
   ]);
 
-  // keep track of a variable from the contract in the local React state:
-  const purpose = useContractReader(readContracts, "OsmoticFunding", "purpose");
+  const tokenBlance = useContractReader(readContracts, "StakeToken", "balanceOf", [address]);
 
-  // 📟 Listen for broadcast events
-  const setPurposeEvents = useEventListener(readContracts, "OsmoticFunding", "SetPurpose", localProvider, 1);
+  console.log("Token Balance: ", tokenBlance);
+
+  // // keep track of a variable from the contract in the local React state:
+  // const purpose = useContractReader(readContracts, "OsmoticFunding", "purpose");
+
+  // // 📟 Listen for broadcast events
+  // const setPurposeEvents = useEventListener(readContracts, "OsmoticFunding", "SetPurpose", localProvider, 1);
 
   /*
   const addressFromENS = useResolveName(mainnetProvider, "austingriffith.eth");
@@ -442,6 +448,29 @@ function App(props) {
     );
   }
 
+  if (
+    localProvider &&
+    localProvider._network &&
+    localProvider._network.chainId === 31337 &&
+    tokenBlance &&
+    ethers.utils.formatEther(tokenBlance) <= 0
+  ) {
+    faucetHint = (
+      <div style={{ padding: 16 }}>
+        <Button
+          type="primary"
+          onClick={() => {
+            faucetTx(
+              writeContracts.StakeToken.connect(deployerSigner).transfer(address, ethers.utils.parseEther("10")),
+            );
+          }}
+        >
+          💰 Grab GTC tokens from the faucet ⛽️
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       {/* ✏️ Edit the header and change the title to your project name */}
@@ -491,7 +520,7 @@ function App(props) {
               price={price}
             />
           </Route>
-          <Route path="/exampleui">
+          {/* <Route path="/exampleui">
             <ExampleUI
               address={address}
               userSigner={userSigner}
@@ -505,7 +534,7 @@ function App(props) {
               purpose={purpose}
               setPurposeEvents={setPurposeEvents}
             />
-          </Route>
+          </Route> */}
           <Route path="/mainnetdai">
             <Contract
               name="DAI"
@@ -553,6 +582,9 @@ function App(props) {
           loadWeb3Modal={loadWeb3Modal}
           logoutOfWeb3Modal={logoutOfWeb3Modal}
           blockExplorer={blockExplorer}
+          readContracts={readContracts}
+          contractName={"StakeToken"}
+          tokenSymbol={"GTC"}
         />
         {faucetHint}
       </div>

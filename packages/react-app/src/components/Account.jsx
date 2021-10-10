@@ -3,6 +3,7 @@ import React from "react";
 import { useThemeSwitcher } from "react-css-theme-switcher";
 import Address from "./Address";
 import Balance from "./Balance";
+import TokenBalance from "./TokenBalance";
 import Wallet from "./Wallet";
 
 /*
@@ -50,6 +51,9 @@ export default function Account({
   loadWeb3Modal,
   logoutOfWeb3Modal,
   blockExplorer,
+  readContracts,
+  contractName,
+  tokenSymbol,
 }) {
   const modalButtons = [];
   if (web3Modal) {
@@ -93,6 +97,7 @@ export default function Account({
         "Connecting..."
       )}
       <Balance address={address} provider={localProvider} price={price} />
+      <TokenBalance contracts={readContracts} address={address} name={contractName} symbol={tokenSymbol} />
       <Wallet
         address={address}
         provider={localProvider}

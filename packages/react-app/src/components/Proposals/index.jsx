@@ -15,7 +15,6 @@ export default function Proposals({ address, mainnetProvider, localProvider, tx,
   const totalStaked = useContractReader(readContracts, "OsmoticFunding", "totalStaked");
   const _availableFunds = useContractReader(readContracts, "OsmoticFunding", "availableFunds");
   const availableFunds = _availableFunds && utils.formatUnits(_availableFunds.toString(), 18);
-  console.log(availableFunds, "hola");
   const proposalsRef = useRef(null);
   const [searchTerm, setSearchTerm] = useState();
   const [searchedProposals] = useApi(
