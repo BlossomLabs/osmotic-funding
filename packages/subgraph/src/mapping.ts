@@ -1,33 +1,30 @@
-import { BigInt, Address } from "@graphprotocol/graph-ts";
-import {
-  OsmoticFunding,
-  SetPurpose,
-} from "../generated/OsmoticFunding/OsmoticFunding";
-import { Purpose, Sender } from "../generated/schema";
+import { BigInt } from "@graphprotocol/graph-ts";
+import { ProposalAdded } from "../generated/OsmoticFunding/OsmoticFunding";
+import { Beneficiary, Proposal } from "../generated/schema";
 
-export function handleSetPurpose(event: SetPurpose): void {
-  let senderString = event.params.sender.toHexString();
+export function handleProposalAdded(event: ProposalAdded): void {
+  let beneficiaryString = event.params.beneficiary.toHexString();
 
-  let sender = Sender.load(senderString);
+  let beneficiary = Beneficiary.load(beneficiaryString);
 
-  if (sender == null) {
-    sender = new Sender(senderString);
-    sender.address = event.params.sender;
-    sender.createdAt = event.block.timestamp;
-    sender.purposeCount = BigInt.fromI32(1);
+  if (beneficiary === null) {
+    beneficiary = new Beneficiary(beneficiaryString);
+    beneficiary.address = event.params.beneficiary;
+    beneficiary.createdAt = event.block.timestamp;
+    beneficiary.proposalCount = BigInt.fromI32(1);
   } else {
-    sender.purposeCount = sender.purposeCount.plus(BigInt.fromI32(1));
+    beneficiary.proposalCount = beneficiary.proposalCount.plus(
+      BigInt.fromI32(1)
+    );
   }
 
-  let purpose = new Purpose(
-    event.transaction.hash.toHex() + "-" + event.logIndex.toString()
-  );
+  let proposal = new Proposal(event.params.id.toString());
 
-  purpose.purpose = event.params.purpose;
-  purpose.sender = senderString;
-  purpose.createdAt = event.block.timestamp;
-  purpose.transactionHash = event.transaction.hash.toHex();
+  proposal.link = event.params.link;
+  proposal.beneficiary = beneficiaryString;
+  proposal.createdAt = event.block.timestamp;
+  proposal.transactionHash = event.transaction.hash.toHex();
 
-  purpose.save();
-  sender.save();
+  proposal.save();
+  beneficiary.save();
 }

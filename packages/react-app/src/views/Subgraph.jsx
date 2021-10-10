@@ -26,44 +26,45 @@ function Subgraph(props) {
 
   const EXAMPLE_GRAPHQL = `
   {
-    purposes(first: 25, orderBy: createdAt, orderDirection: desc) {
+    proposals(first: 25, orderBy: createdAt, orderDirection: desc) {
       id
-      purpose
+      link
       createdAt
-      sender {
+      beneficiary {
         id
       }
     }
-    senders {
+    beneficiaries {
       id
       address
-      purposeCount
+      proposalCount
     }
   }
   `;
   const EXAMPLE_GQL = gql(EXAMPLE_GRAPHQL);
   const { loading, data } = useQuery(EXAMPLE_GQL, { pollInterval: 2500 });
 
-  const purposeColumns = [
+  const proposalColumns = [
     {
-      title: "Purpose",
-      dataIndex: "purpose",
-      key: "purpose",
+      title: "Proposal",
+      dataIndex: "link",
+      key: "proposal",
     },
     {
-      title: "Sender",
+      title: "Beneficiary",
       key: "id",
-      render: record => <Address value={record.sender.id} ensProvider={props.mainnetProvider} fontSize={16} />,
+      render: record => <Address value={record.beneficiary.id} ensProvider={props.mainnetProvider} fontSize={16} />,
     },
     {
-      title: "createdAt",
+      title: "Created at",
       key: "createdAt",
       dataIndex: "createdAt",
       render: d => new Date(d * 1000).toISOString(),
     },
   ];
 
-  const [newPurpose, setNewPurpose] = useState("loading...");
+  const [link, setLink] = useState("loading...");
+  const [beneficiary, setBeneficiary] = useState("loading...");
 
   const deployWarning = (
     <div style={{ marginTop: 8, padding: 8 }}>Warning: 🤔 Have you deployed your subgraph yet?</div>
@@ -157,22 +158,27 @@ function Subgraph(props) {
         <div style={{ margin: 32, textAlign: "right" }}>
           <Input
             onChange={e => {
-              setNewPurpose(e.target.value);
+              setLink(e.target.value);
+            }}
+          />
+          <Input
+            onChange={e => {
+              setBeneficiary(e.target.value);
             }}
           />
           <Button
             onClick={() => {
-              console.log("newPurpose", newPurpose);
-              /* look how you call setPurpose on your contract: */
-              props.tx(props.writeContracts.OsmoticFunding.setPurpose(newPurpose));
+              console.log("new proposal", link);
+              /* look how you call addProposal on your contract: */
+              props.tx(props.writeContracts.OsmoticFunding.addProposal(link, beneficiary));
             }}
           >
-            Set Purpose
+            Add Proposal
           </Button>
         </div>
 
         {data ? (
-          <Table dataSource={data.purposes} columns={purposeColumns} rowKey="id" />
+          <Table dataSource={data.proposals} columns={proposalColumns} rowKey="id" />
         ) : (
           <Typography>{loading ? "Loading..." : deployWarning}</Typography>
         )}

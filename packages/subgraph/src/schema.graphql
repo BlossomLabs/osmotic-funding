@@ -1,15 +1,15 @@
-type Purpose @entity {
+type Proposal @entity {
   id: ID!
-  sender: Sender!
-  purpose: String!
+  beneficiary: Beneficiary!
+  link: String!
   createdAt: BigInt!
   transactionHash: String!
 }
 
-type Sender @entity {
+type Beneficiary @entity {
   id: ID!
   address: Bytes!
-  purposes: [Purpose!] @derivedFrom(field: "sender")
+  proposals: [Proposal!] @derivedFrom(field: "beneficiary")
   createdAt: BigInt!
-  purposeCount: BigInt!
+  proposalCount: BigInt!
 }
