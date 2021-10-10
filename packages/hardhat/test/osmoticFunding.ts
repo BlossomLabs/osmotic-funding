@@ -2,7 +2,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signers";
 import { expect, use } from "chai";
 import { solidity } from "ethereum-waffle";
 import { deployments, ethers, getNamedAccounts } from "hardhat";
-import { impersonateAddress } from "../helpers/rpc";
+import { impersonateAddress, increase } from "../helpers/rpc";
 import { ERC20Mock, ISuperToken, OsmoticFunding } from "../typechain";
 
 use(solidity);
@@ -184,7 +184,7 @@ xdescribe("Osmotic Funding", async function () {
         parseFloat(String(rateDay1)) * a ** timePassed +
         targetRate * (1 - a ** timePassed);
       const expectedRate2 = targetRate * (1 - a ** (timePassed * 2));
-      expect(expectedRate / expectedRate2).to.be.closeTo(1, 1e-10);
+      expect(expectedRate / expectedRate2).to.be.closeTo(1, 1e-7);
       expect(parseFloat(ethers.utils.formatUnits(rateDay2, 18))).to.be.closeTo(
         expectedRate / 1e18,
         1.5
@@ -217,6 +217,47 @@ xdescribe("Osmotic Funding", async function () {
     });
   });
 
+  describe("calculateAmount()", function () {
+    it("Should calculate properly the amount of tokens released", async function () {
+      const alpha =
+        parseFloat((await osmoticFunding.getFundingSettings())[0].toString()) /
+        1e18;
+      const timePassed = 24 * 60 * 60; // 1 day
+      const initialRate = 0; // rate starts at 0
+      const targetRate = 1e18; // target rate is 1 token/s
+      const amountDay1 = await osmoticFunding.calculateAmount(
+        timePassed,
+        String(initialRate),
+        String(targetRate)
+      );
+      const expectedRate =
+        (targetRate *
+          (1 - alpha ** timePassed + timePassed * Math.log(1 / alpha)) +
+          initialRate * (1 - alpha ** timePassed)) /
+        Math.log(1 / alpha);
+      expect(
+        parseFloat(ethers.utils.formatUnits(amountDay1, 18))
+      ).to.be.closeTo(expectedRate / 1e18, 1e-4);
+    });
+  });
+
+  describe("claim()", function () {
+    beforeEach(async () => {
+      await createProposal(proposal);
+      await stakeOnProposal(0);
+      await increase(String(24 * 60 * 60)); // After one day
+    });
+    it("Should retreive a certain amount of funds from a proposal", async function () {
+      const balance = await requestToken.balanceOf(beneficiary.address);
+      const claimable = await osmoticFunding.claimable(0);
+      await osmoticFunding.claim(0);
+      const newBalance = await requestToken.balanceOf(beneficiary.address);
+      expect(
+        parseFloat(newBalance.sub(balance).toString()) / 1e18
+      ).to.be.closeTo(parseFloat(claimable.toString()) / 1e18, 1);
+    });
+  });
+
   describe("calculateTargetRatio()", function () {
     beforeEach(async () => {
       await createProposal(proposal);
@@ -233,7 +274,10 @@ xdescribe("Osmotic Funding", async function () {
       const totalStaked =
         parseFloat((await osmoticFunding.totalStaked()).toString()) / 1e18;
       const staked = 1e18;
-      const funds = 100;
+      const funds =
+        parseFloat(
+          (await requestToken.balanceOf(osmoticFunding.address)).toString()
+        ) / 1e18;
       const targetRate = await osmoticFunding.calculateTargetRate(
         String(staked)
       );
@@ -257,11 +301,11 @@ xdescribe("Osmotic Funding", async function () {
       const totalStaked =
         parseFloat((await osmoticFunding.totalStaked()).toString()) / 1e18;
       const targetRate = await osmoticFunding.calculateTargetRate(
-        String(Math.floor(m * totalStaked * 1e18 - 100))
+        String(Math.floor(m * totalStaked * 1e18))
       );
       expect(targetRate).to.be.equal(0);
       const targetRate2 = await osmoticFunding.calculateTargetRate(
-        String(m * totalStaked * 1e18)
+        String(m * totalStaked * 1e18 + 100)
       );
       expect(targetRate2).to.not.be.equal(0);
     });
