@@ -14,7 +14,7 @@ Prerequisites: [Node](https://nodejs.org/en/download/) plus [Yarn](https://class
 git clone https://github.com/BlossomLabs/osmotic-funding.git
 ```
 
-> install and start your 👷‍ Hardhat chain:
+> install and start 👷‍ Hardhat chain:
 
 ```bash
 cd osmotic-funding
@@ -22,18 +22,28 @@ yarn install
 yarn chain
 ```
 
-> in a second terminal window, start your 📱 frontend:
+> in a second terminal window, start 📱 frontend:
 
 ```bash
 cd osmotic-funding
 yarn start
 ```
 
-> in a third terminal window, 🛰 deploy your contract:
+> in a third terminal window, 🛰 deploy contracts:
 
 ```bash
 cd osmotic-funding
 yarn deploy
 ```
 
-📱 Open http://localhost:3000 to see the app
+📱 Open http://localhost:3000 to see the app.
+
+## Superfluid integration: Adaptive flow
+
+We have implemented an advanced feature that integrates with [Superfluid](https://www.superfluid.finance) to create an adaptive payment flow.
+
+> checkout the `superfluid-osmotic-funding` branch to play with it:
+
+```bash
+git checkout superfluid-osmotic-funding
+```
