@@ -60,6 +60,9 @@ const config: HardhatUserConfig = {
   networks: {
     localhost: {
       url: "http://127.0.0.1:8545/",
+      throwOnCallFailures: false,
+      gas: 10_000_000,
+      saveDeployments: true,
       forking: {
         url: "https://speedy-nodes-nyc.moralis.io/cff107316eaa320c66ca9c51/polygon/mumbai/archive",
         blockNumber: 7000000,
@@ -101,7 +104,14 @@ const config: HardhatUserConfig = {
   },
   namedAccounts: {
     deployer: 0,
-    tester: 1,
+    tester0: 1,
+    tester1: 2,
+    sender0: 3,
+    sender1: 4,
+    sender2: 5,
+    receiver0: 6,
+    receiver1: 7,
+    receiver2: 8,
   },
   mocha: {
     timeout: 0,
@@ -118,6 +128,10 @@ const config: HardhatUserConfig = {
         },
       },
     ],
+  },
+  tenderly: {
+    username: "PJColombo",
+    project: "osmotic-funding",
   },
 };
 

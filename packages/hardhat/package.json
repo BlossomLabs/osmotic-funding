@@ -46,7 +46,7 @@
     "fork": "hardhat node --no-deploy --network hardhat --hostname 0.0.0.0 --port 8545 --fork https://speedy-nodes-nyc.moralis.io/cff107316eaa320c66ca9c51/polygon/mumbai/archive",
     "test": "hardhat test --network localhost",
     "compile": "hardhat compile",
-    "deploy": "hardhat deploy",
+    "deploy": "hardhat deploy --tags FluidFunding",
     "deploy:export": "hardhat deploy --export-all ../react-app/src/contracts/hardhat_contracts.json",
     "postdeploy": "hardhat run scripts/publish.ts",
     "watch": "node scripts/watch.ts",
