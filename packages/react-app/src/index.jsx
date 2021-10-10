@@ -2,6 +2,7 @@ import { ApolloClient, ApolloProvider, InMemoryCache } from "@apollo/client";
 import React from "react";
 import { ThemeSwitcherProvider } from "react-css-theme-switcher";
 import ReactDOM from "react-dom";
+import { ApiProvider } from "react-use-api";
 import App from "./App";
 import "./index.css";
 
@@ -12,7 +13,7 @@ const themes = {
 
 const prevTheme = window.localStorage.getItem("theme");
 
-const subgraphUri = "http://localhost:8000/subgraphs/name/scaffold-eth/your-contract";
+const subgraphUri = "http://localhost:8000/subgraphs/name/blossomlabs/osmotic-funding";
 
 const client = new ApolloClient({
   uri: subgraphUri,
@@ -21,9 +22,11 @@ const client = new ApolloClient({
 
 ReactDOM.render(
   <ApolloProvider client={client}>
-    <ThemeSwitcherProvider themeMap={themes} defaultTheme={prevTheme || "light"}>
-      <App subgraphUri={subgraphUri} />
-    </ThemeSwitcherProvider>
+    <ApiProvider context={{ alwaysUseCache: true }}>
+      <ThemeSwitcherProvider themeMap={themes} defaultTheme={prevTheme || "light"}>
+        <App subgraphUri={subgraphUri} />
+      </ThemeSwitcherProvider>
+    </ApiProvider>
   </ApolloProvider>,
   document.getElementById("root"),
 );
