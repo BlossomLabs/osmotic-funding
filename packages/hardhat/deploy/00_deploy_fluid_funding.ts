@@ -40,17 +40,19 @@ const deployFunc: DeployFunction = async (hre) => {
     log: true,
   });
 
-  await tenderly.persistArtifacts([
-    {
-      address: fluidFundingDeployment.address,
-      name: "FluidFunding",
-    },
-    { address: agreementClass, name: "AdaptiveFlowAgreementV1" },
-  ]);
+  if (process.env.VERIFY) {
+    await tenderly.persistArtifacts([
+      {
+        address: fluidFundingDeployment.address,
+        name: "FluidFunding",
+      },
+      { address: agreementClass, name: "AdaptiveFlowAgreementV1" },
+    ]);
 
-  await tenderly.verify([
-    { address: agreementClass, name: "AdaptiveFlowAgreementV1" },
-  ]);
+    await tenderly.verify([
+      { address: agreementClass, name: "AdaptiveFlowAgreementV1" },
+    ]);
+  }
 };
 
 deployFunc.tags = ["FluidFunding"];
