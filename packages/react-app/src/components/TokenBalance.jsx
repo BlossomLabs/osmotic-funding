@@ -1,7 +1,6 @@
 import { useTokenBalance } from "eth-hooks/erc/erc-20/useTokenBalance";
-import React, { useState } from "react";
-
 import { utils } from "ethers";
+import React, { useState } from "react";
 
 export default function TokenBalance(props) {
   const [dollarMode, setDollarMode] = useState(true);
@@ -23,7 +22,7 @@ export default function TokenBalance(props) {
     floatBalance = parseFloat(etherBalance);
   }
 
-  let displayBalance = floatBalance.toFixed(4);
+  let displayBalance = floatBalance.toFixed(2) + " " + props.symbol;
 
   if (props.dollarMultiplier && dollarMode) {
     displayBalance = "$" + (floatBalance * props.dollarMultiplier).toFixed(2);

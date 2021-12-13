@@ -9,14 +9,21 @@ const { Header, Content, Footer } = Layout;
 const { Title } = Typography;
 const { Search } = Input;
 
-export default function Proposals({ address, mainnetProvider, localProvider, tx, readContracts, writeContracts }) {
+export default function Proposals({
+  address,
+  mainnetProvider,
+  localProvider,
+  tx,
+  readContracts,
+  writeContracts,
+  voterBalance,
+}) {
   const stakeTokenSymbol = useContractReader(readContracts, "OsmoticFunding", "stakeTokenSymbol");
   const requestTokenSymbol = useContractReader(readContracts, "OsmoticFunding", "requestTokenSymbol");
   const totalStaked = useContractReader(readContracts, "OsmoticFunding", "totalStaked");
   const availableFunds = useContractReader(readContracts, "OsmoticFunding", "availableFunds");
 
   const totalVoterStake = useContractReader(readContracts, "OsmoticFunding", "getTotalVoterStake", [address]);
-  const voterBalance = useContractReader(readContracts, "OsmoticFunding", "stakeTokenBalanceOf", [address]);
 
   const _availableFunds = utils.formatUnits(availableFunds || 0, 18);
   const _totalStaked = utils.formatUnits(totalStaked || 0, 18);

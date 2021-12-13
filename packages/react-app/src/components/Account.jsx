@@ -1,6 +1,7 @@
 import { Button } from "antd";
 import React from "react";
 import { useThemeSwitcher } from "react-css-theme-switcher";
+import { format } from "../helpers/format";
 import Address from "./Address";
 import Balance from "./Balance";
 import Wallet from "./Wallet";
@@ -50,7 +51,10 @@ export default function Account({
   loadWeb3Modal,
   logoutOfWeb3Modal,
   blockExplorer,
+  voterBalance,
+  tokenSymbol,
 }) {
+  const _voterBalance = format(voterBalance);
   const modalButtons = [];
   if (web3Modal) {
     if (web3Modal.cachedProvider) {
@@ -93,6 +97,16 @@ export default function Account({
         "Connecting..."
       )}
       <Balance address={address} provider={localProvider} price={price} />
+      <span
+        style={{
+          verticalAlign: "middle",
+          fontSize: 24,
+          padding: 8,
+          cursor: "pointer",
+        }}
+      >
+        {_voterBalance + " " + tokenSymbol}
+      </span>
       <Wallet
         address={address}
         provider={localProvider}

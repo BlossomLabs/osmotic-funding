@@ -19,11 +19,8 @@ import {
 import { useContractReader } from "eth-hooks";
 import { utils } from "ethers";
 import { useState } from "react";
+import { format } from "../../helpers/format";
 const { Title, Paragraph, Text, Link } = Typography;
-
-function format(bn) {
-  return Number.parseFloat(utils.formatUnits(bn || 0, 18)).toFixed(2);
-}
 
 function ProposalCard({
   proposal,
